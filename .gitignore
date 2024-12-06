@@ -53,6 +53,7 @@ _deps
 *-prefix/
 
 ### Directories ###
+.vscode
 build
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,cmake

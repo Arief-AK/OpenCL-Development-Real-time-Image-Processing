@@ -58,3 +58,12 @@ elseif(UNIX AND NOT APPLE)
     message(STATUS "The executable is located in: " ${CMAKE_CURRENT_BINARY_DIR})
     configure_file(galaxy.jpg ${CMAKE_CURRENT_BINARY_DIR}/galaxy.jpg COPYONLY)
 endif()
+
+# Move the kernel file(s) into the executable directory
+if(WIN32)
+    message(STATUS "The executable is located in: " ${CMAKE_CURRENT_BINARY_DIR} "/Debug")
+    configure_file(kernel/grayscale.cl ${CMAKE_CURRENT_BINARY_DIR}/Debug/grayscale.cl COPYONLY)
+elseif(UNIX AND NOT APPLE)
+    message(STATUS "The executable is located in: " ${CMAKE_CURRENT_BINARY_DIR})
+    configure_file(kernel/grayscale.cl ${CMAKE_CURRENT_BINARY_DIR}/grayscale.cl COPYONLY)
+endif()
