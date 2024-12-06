@@ -1,3 +1,13 @@
+# Function to correlate sources to header files
+function(collect_sources_from_headers source_var header_dir source_dir)
+    set(sources "")
+    foreach(header ${ARGN})
+        get_filename_component(name ${header} NAME_WE)
+        list(APPEND sources ${source_dir}/${name}.cpp)
+    endforeach()
+    set(${source_var} ${sources} PARENT_SCOPE)
+endfunction()
+
 # Find OpenCL package/installation
 find_package(OpenCL REQUIRED)
 if (OpenCL_FOUND)
@@ -21,8 +31,21 @@ endif()
 # Set the OpenCL library
 set(OS_LIB OpenCL::OpenCL)
 
+# List all headers used in this project
+set(HEADERS
+    include/InfoPlatform.hpp
+    include/Controller.hpp
+)
+
+# Collect matching sources based on the headers
+collect_sources_from_headers(SOURCES include src ${HEADERS})
+
 # Add executable to the CMake framework
-add_executable(Grayscale grayscale.cpp)
+add_executable(Grayscale ${SOURCES} grayscale.cpp)
+
+# Include the directory with kernel file
+target_include_directories(Grayscale PRIVATE include)
+target_include_directories(Grayscale PRIVATE kernel)
 
 # Link the OpenCL and OpenCV library to the executable
 target_link_libraries(Grayscale ${OS_LIB} ${OpenCV_LIBS})
