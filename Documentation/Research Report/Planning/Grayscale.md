@@ -61,6 +61,16 @@ if(x < width && y < height){
 ```
 
 ## Performance Analysis
+This section provides an overview of the testing procedure and the factors considered in the analysis.
+
+### Test Outline
+1. Load test images from a directory
+2. Perform the grayscale conversion on the `CPU` and `OpenCL` paths
+3. Record the following factors:
+    - End-to-end execution time
+    - Output comparison results with MAE
+4. Save results into a `.csv` file
+
 ### CPU Implementation (Explicitly OpenCV)
 TBA
 
