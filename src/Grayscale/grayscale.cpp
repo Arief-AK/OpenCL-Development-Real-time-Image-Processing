@@ -34,7 +34,7 @@ void GetImage(std::vector<unsigned char> *input_data, std::vector<unsigned char>
 }
 
 int main(int, char**){
-    std::cout << "Hello, from OpenCL-Dev-Realtime-Image-Processing!\n";
+    std::cout << "Hello, from Grayscale application!\n";
     
     // Initialise variables
     std::vector<unsigned char> input_data;

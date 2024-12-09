@@ -41,14 +41,14 @@ set(HEADERS
 collect_sources_from_headers(SOURCES include src ${HEADERS})
 
 # Add executable to the CMake framework
-add_executable(Grayscale ${SOURCES} grayscale.cpp)
+add_executable(Grayscale_OpenCL ${SOURCES} grayscale.cpp)
 
 # Include the directory with kernel file
-target_include_directories(Grayscale PRIVATE include)
-target_include_directories(Grayscale PRIVATE kernel)
+target_include_directories(Grayscale_OpenCL PRIVATE include)
+target_include_directories(Grayscale_OpenCL PRIVATE kernel)
 
 # Link the OpenCL and OpenCV library to the executable
-target_link_libraries(Grayscale ${OS_LIB} ${OpenCV_LIBS})
+target_link_libraries(Grayscale_OpenCL ${OS_LIB} ${OpenCV_LIBS})
 
 # Move the image into the executable directory
 if(WIN32)
