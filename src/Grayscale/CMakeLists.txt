@@ -35,6 +35,7 @@ set(OS_LIB OpenCL::OpenCL)
 set(HEADERS
     include/InfoPlatform.hpp
     include/Controller.hpp
+    include/FileHandler.hpp
 )
 
 # Collect matching sources based on the headers

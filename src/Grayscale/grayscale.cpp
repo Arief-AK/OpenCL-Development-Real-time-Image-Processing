@@ -3,6 +3,7 @@
 #include <opencv2/opencv.hpp>
 
 #include <Controller.hpp>
+#include <FileHandler.hpp>
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
