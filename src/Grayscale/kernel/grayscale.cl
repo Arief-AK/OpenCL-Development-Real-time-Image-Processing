@@ -17,7 +17,7 @@ __kernel void grayscale(
         uchar4 pixel = input_image[idx];
 
         // Compute grayscale value using luminance formula
-        uchar gray = (uchar)(0.299f * pixel.x + 0.578f * pixel.y + 0.114f * pixel.z);
+        uchar gray = clamp((int)(0.299f * pixel.x + 0.587f * pixel.y + 0.114f * pixel.z), 0, 255);
         output_image[idx] = gray;
     }
 }
