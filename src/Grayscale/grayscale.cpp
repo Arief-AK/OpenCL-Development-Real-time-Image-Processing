@@ -38,7 +38,7 @@ void InitOpenCL(cl_context* context, cl_command_queue* command_queue, cl_program
     *kernel = controller.CreateKernel(*program, "grayscale");
 }
 
-void GetImage(std::string image_path, std::vector<unsigned char> *input_data, std::vector<unsigned char> *output_data, cl_int* width, cl_int* height){
+void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_data, std::vector<unsigned char> *output_data, cl_int* width, cl_int* height){
     // Load the input image using OpenCV
     cv::Mat image = cv::imread(image_path, cv::IMREAD_COLOR);
     if(image.empty()){
@@ -65,14 +65,51 @@ void GetImage(std::string image_path, std::vector<unsigned char> *input_data, st
     *output_data = _output_data;
 }
 
-void PrintEndToEndExecutionTime(std::chrono::steady_clock::time_point execution_time_start,
+void GetImageCPU(cv::Mat* input_image, std::string image_path){
+    // Load the input image using OpenCV
+    cv::Mat image = cv::imread(image_path, cv::IMREAD_COLOR);
+    if(image.empty()){
+        std::cerr << "Failed to load image" << std::endl;
+    }
+    
+    if(DISPLAY_IMAGES){
+        cv::imshow("CPU Display Window", image);
+        cv::waitKey(0);
+    }
+
+    *input_image = image;
+}
+
+void PerformCPU(std::string image_path){
+    std::cout << "Performing grayscale on the CPU" << std::endl;
+
+    // Initialise variables
+    cv::Mat input_image;
+    cv::Mat output_image;
+
+    // Get image using OpenCV
+    GetImageCPU(&input_image, image_path);
+
+    // Convert the image to grayscale and perform execution time profiling
+    auto start = std::chrono::high_resolution_clock::now();
+    cv::cvtColor(input_image, output_image, cv::COLOR_RGBA2GRAY);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    // Print results
+    auto execution_time = std::chrono::duration<double, std::milli>(end - start).count();
+    std::cout << "\n-------------------- START OF CPU EXEUCTION DETAILS --------------------" << std::endl;
+    std::cout << "Grayscale conversion execution time: " << execution_time << " ms" << std::endl;
+    std::cout << "-------------------- END OF CPU EXEUCTION DETAILS --------------------" << std::endl;
+}
+
+void PrintEndToEndExecutionTime(std::string method, std::chrono::steady_clock::time_point execution_time_start,
     std::chrono::steady_clock::time_point execution_time_end){
-    // Print the complete execution time (OpenCL end-to-end)
+    // Print the complete execution time
     auto total_execution_time_ms = std::chrono::duration<double, std::milli>(execution_time_end - execution_time_start).count();
     
-    std::cout << "\n-------------------- START OF EXECUTION TIME (end-to-end) DETAILS --------------------" << std::endl;
+    std::cout << "\n-------------------- START OF OpenCL EXECUTION TIME (end-to-end) DETAILS --------------------" << std::endl;
     std::cout << std::fixed << std::setprecision(3) << "Total execution time (OpenCL end-to-end): " << total_execution_time_ms << " ms" << std::endl;
-    std::cout << "-------------------- END OF EXECUTION TIME (end-to-end) DETAILS --------------------" << std::endl;
+    std::cout << "-------------------- END OF OpenCL EXECUTION TIME (end-to-end) DETAILS --------------------" << std::endl;
 }
 
 void PrintRawKernelExecutionTime(cl_ulong start, cl_ulong end){
@@ -112,13 +149,13 @@ int main(int, char**){
         cl_int width, height;
 
         // Get image
-        GetImage(image_path, &input_data, &output_data, &width, &height);
+        GetImageOpenCL(image_path, &input_data, &output_data, &width, &height);
 
         // Initialise the global work size for kernel execution
         size_t global_work_size[] = {static_cast<size_t>(width), static_cast<size_t>(height)};
 
         // Start profiling execution time
-        auto execution_time_start = std::chrono::high_resolution_clock::now();
+        auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
 
         // Create buffers
         auto input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned char) * input_data.size(), input_data.data(), &err_num);
@@ -154,7 +191,7 @@ int main(int, char**){
         }
 
         // End profiling execution time
-        auto execution_time_end = std::chrono::high_resolution_clock::now();
+        auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
 
         // Get the RAW kernel timing using OpenCL events
         cl_ulong start, end;
@@ -177,8 +214,12 @@ int main(int, char**){
 
         // Print the RAW kernel duration
         if(TIME_EXECUTION){
-            PrintEndToEndExecutionTime(execution_time_start, execution_time_end);
+            // OpenCL
+            PrintEndToEndExecutionTime( "OpenCL", opencl_execution_time_start, opencl_execution_time_end);
             PrintRawKernelExecutionTime(start, end);
+
+            // CPU
+            PerformCPU(image_path);
         }
     }
 
