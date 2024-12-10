@@ -2,7 +2,7 @@
 
 FileHandler::FileHandler():m_directory_name{"images"}, m_image_paths{}{}
 
-std::vector<std::string> FileHandler::LoadImages(const std::string &directory){
+std::vector<std::string> FileHandler::LoadImages(const std::string &directory){    
     // Iterate through the directory
     for (const auto& entry : fs::directory_iterator(directory)){
         // Check file-type

@@ -10,16 +10,46 @@
 #define DEVICE_INDEX 0
 
 bool TIME_EXECUTION = true;
+bool DISPLAY_IMAGES = false;
 
-void GetImage(std::vector<unsigned char> *input_data, std::vector<unsigned char> *output_data, cl_int* width, cl_int* height){
+std::string test_directory = "images/";
+
+void InitOpenCL(cl_context* context, cl_command_queue* command_queue, cl_program* program, cl_kernel* kernel){
+    // Initialise OpenCL variables
+    Controller controller;
+
+    // Get OpenCL platforms
+    auto platforms = controller.GetPlatforms();
+    for (auto && platform : platforms){
+        controller.DisplayPlatformInformation(platform);
+    }
+
+    // Inform user of chosen indexes for platform and device
+    std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
+
+    // Get intended device
+    auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
+
+    // Get OpenCL mandatory properties
+    cl_int err_num = 0;
+    *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
+    *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], "grayscale.cl");
+    *kernel = controller.CreateKernel(*program, "grayscale");
+}
+
+void GetImage(std::string image_path, std::vector<unsigned char> *input_data, std::vector<unsigned char> *output_data, cl_int* width, cl_int* height){
     // Load the input image using OpenCV
-    std::string imagePath = "galaxy.jpg";
-    cv::Mat image = cv::imread(imagePath, cv::IMREAD_COLOR);
+    cv::Mat image = cv::imread(image_path, cv::IMREAD_COLOR);
     if(image.empty()){
         std::cerr << "Failed to load image" << std::endl;
     }
-    cv::imshow("Display Window", image);
-    cv::waitKey(0);
+
+    // Display image (if necessary)
+    if(DISPLAY_IMAGES){
+        cv::imshow("Display Window", image);
+        cv::waitKey(0);
+    }
 
     // Convert to RGBA and get image dimensions
     cv::cvtColor(image, image, cv::COLOR_BGR2RGBA);
@@ -57,98 +87,99 @@ void PrintRawKernelExecutionTime(cl_ulong start, cl_ulong end){
 
 int main(int, char**){
     std::cout << "Hello, from Grayscale application!\n";
-    
-    // Initialise variables
-    std::vector<unsigned char> input_data;
-    std::vector<unsigned char> output_data;
-    cl_int width, height;
 
-    // Get image
-    GetImage(&input_data, &output_data, &width, &height);
+    // Initialise FileHandler
+    FileHandler file_handler;
 
     // Initialise OpenCL variables
-    Controller controller;
-
-    // Get OpenCL platforms
-    auto platforms = controller.GetPlatforms();
-    for (auto && platform : platforms){
-        controller.DisplayPlatformInformation(platform);
-    }
-
-    // Inform user of chosen indexes for platform and device
-    std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
-
-    // Get intended device
-    auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
-
-    // Get OpenCL mandatory properties
+    cl_context context;
+    cl_command_queue command_queue;
+    cl_program program;
+    cl_kernel kernel;
     cl_int err_num = 0;
-    auto context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
-    auto command_queue = controller.CreateCommandQueue(context, devices[DEVICE_INDEX]);
-    auto program = controller.CreateProgram(context, devices[DEVICE_INDEX], "grayscale.cl");
-    auto kernel = controller.CreateKernel(program, "grayscale");
 
-    // Initialise the global work size and execute kernel
-    size_t global_work_size[] = {static_cast<size_t>(width), static_cast<size_t>(height)};
+    // Initialise OpenCL platforms and devices
+    InitOpenCL(&context, &command_queue, &program, &kernel);
 
-    // Start profiling execution time
-    auto execution_time_start = std::chrono::high_resolution_clock::now();
+    // Load the images
+    auto image_paths = file_handler.LoadImages(test_directory);
+    
+    // Iterate through the images
+    for(const auto& image_path: image_paths){
+        // Initialise image variables
+        std::vector<unsigned char> input_data;
+        std::vector<unsigned char> output_data;
+        cl_int width, height;
 
-    // Create buffers
-    auto input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned char) * input_data.size(), input_data.data(), &err_num);
-    if(err_num != CL_SUCCESS){
-        std::cerr << "Failed to create input buffer" << std::endl;
-    }
-    auto output_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(unsigned char) * output_data.size(), nullptr, &err_num);
-    if(err_num != CL_SUCCESS){
-        std::cerr << "Failed to create output buffer" << std::endl;
-    }
+        // Get image
+        GetImage(image_path, &input_data, &output_data, &width, &height);
 
-    // Assign the kernel arguments
-    err_num = clSetKernelArg(kernel, 0, sizeof(cl_mem), &input_buffer);
-    err_num |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &output_buffer);
-    err_num |= clSetKernelArg(kernel, 2, sizeof(int), &width);
-    err_num |= clSetKernelArg(kernel, 3, sizeof(int), &height);
+        // Initialise the global work size for kernel execution
+        size_t global_work_size[] = {static_cast<size_t>(width), static_cast<size_t>(height)};
 
-    // Create an event
-    cl_event event;
+        // Start profiling execution time
+        auto execution_time_start = std::chrono::high_resolution_clock::now();
 
-    err_num = clEnqueueNDRangeKernel(command_queue, kernel, 2, nullptr, global_work_size, nullptr, 0, nullptr, &event);
-    if(err_num != CL_SUCCESS){
-        std::cerr << "Failed when executing kernel" << std::endl;
-    }
+        // Create buffers
+        auto input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned char) * input_data.size(), input_data.data(), &err_num);
+        if(err_num != CL_SUCCESS){
+            std::cerr << "Failed to create input buffer" << std::endl;
+        }
+        auto output_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(unsigned char) * output_data.size(), nullptr, &err_num);
+        if(err_num != CL_SUCCESS){
+            std::cerr << "Failed to create output buffer" << std::endl;
+        }
 
-    // Wait for the event to complete
-    clWaitForEvents(1, &event);
+        // Assign the kernel arguments
+        err_num = clSetKernelArg(kernel, 0, sizeof(cl_mem), &input_buffer);
+        err_num |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &output_buffer);
+        err_num |= clSetKernelArg(kernel, 2, sizeof(int), &width);
+        err_num |= clSetKernelArg(kernel, 3, sizeof(int), &height);
 
-    // Read the buffer
-    err_num  = clEnqueueReadBuffer(command_queue, output_buffer, CL_TRUE, 0, sizeof(unsigned char) * output_data.size(), output_data.data(), 0, nullptr, nullptr);
-    if(err_num != CL_SUCCESS){
-        std::cerr << "Failed to read buffer" << std::endl;
-    }
+        // Create an event
+        cl_event event;
 
-    // End profiling execution time
-    auto execution_time_end = std::chrono::high_resolution_clock::now();
+        err_num = clEnqueueNDRangeKernel(command_queue, kernel, 2, nullptr, global_work_size, nullptr, 0, nullptr, &event);
+        if(err_num != CL_SUCCESS){
+            std::cerr << "Failed when executing kernel" << std::endl;
+        }
 
-    // Get the RAW kernel timing using OpenCL events
-    cl_ulong start, end;
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start, NULL);
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, NULL);
+        // Wait for the event to complete
+        clWaitForEvents(1, &event);
 
-    // Convert output to OpenCV matrix
-    cv::Mat output_image(height, width, CV_8UC1, output_data.data());
-    cv::imwrite("grayscale_galaxy.jpg", output_image);
-    std::cout << "Grayscale conversion complete. Displaying Grayscale window." << std::endl;
+        // Read the buffer
+        err_num  = clEnqueueReadBuffer(command_queue, output_buffer, CL_TRUE, 0, sizeof(unsigned char) * output_data.size(), output_data.data(), 0, nullptr, nullptr);
+        if(err_num != CL_SUCCESS){
+            std::cerr << "Failed to read buffer" << std::endl;
+        }
 
-    // Display grayscale window
-    cv::Mat grayscale_image = cv::imread("grayscale_galaxy.jpg", cv::IMREAD_COLOR);
-    cv::imshow("Grayscale window", grayscale_image);
-    cv::waitKey(0);
+        // End profiling execution time
+        auto execution_time_end = std::chrono::high_resolution_clock::now();
 
-    // Print the RAW kernel duration
-    if(TIME_EXECUTION){
-        PrintEndToEndExecutionTime(execution_time_start, execution_time_end);
-        PrintRawKernelExecutionTime(start, end);
+        // Get the RAW kernel timing using OpenCL events
+        cl_ulong start, end;
+        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start, NULL);
+        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, NULL);
+
+        // Convert output to OpenCV matrix
+        auto new_image_path = "images/grayscale_" + std::filesystem::path(image_path).filename().string();
+        
+        cv::Mat output_image(height, width, CV_8UC1, output_data.data());
+        cv::imwrite(new_image_path, output_image);
+        std::cout << "Grayscale conversion complete. Displaying Grayscale window." << std::endl;
+
+        // Display grayscale window
+        if(DISPLAY_IMAGES){
+            cv::Mat grayscale_image = cv::imread(new_image_path, cv::IMREAD_COLOR);
+            cv::imshow("Grayscale window", grayscale_image);
+            cv::waitKey(0);
+        }
+
+        // Print the RAW kernel duration
+        if(TIME_EXECUTION){
+            PrintEndToEndExecutionTime(execution_time_start, execution_time_end);
+            PrintRawKernelExecutionTime(start, end);
+        }
     }
 
     return 0;
