@@ -84,9 +84,10 @@ cl_context Controller::CreateContext(cl_platform_id platform, std::vector<cl_dev
 cl_command_queue Controller::CreateCommandQueue(cl_context context, cl_device_id device)
 {
     cl_command_queue command_queue;
+    cl_command_queue_properties properties = CL_QUEUE_PROFILING_ENABLE;
 
     // Create a command queue
-    command_queue = clCreateCommandQueue(context, device, 0, NULL);
+    command_queue = clCreateCommandQueue(context, device, properties, NULL);
     if(command_queue == NULL){
         std::cerr << "Failed to create CommandQueue" << std::endl;
         return NULL;
