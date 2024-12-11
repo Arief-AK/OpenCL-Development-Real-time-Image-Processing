@@ -133,7 +133,9 @@ std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl
 
     // Get the RAW kernel timing using OpenCL events
     clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), opencl_event_start, NULL);
+    std::cout << "The event start: " << *opencl_event_start << std::endl;
     clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), opencl_event_end, NULL);
+    std::cout << "The event end: " << *opencl_event_end << std::endl;
 
     // Calculate the execution time
     *opencl_execution_time = std::chrono::duration<double, std::milli>(opencl_execution_time_end - opencl_execution_time_start).count();
