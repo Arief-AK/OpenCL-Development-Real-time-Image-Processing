@@ -241,7 +241,7 @@ void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::
     std::ofstream file(filename);
     file << "Timestamp, Image, Resolution, CPU_Time_ms, OpenCL_Time_ms, OpenCL_kernel_ms, Error_MAE\n";
     for (const auto& [timestamp, image, resolution, cpu_time, opencl_time, opencl_kernel_time, mae] : results) {
-        file << timestamp << ", " << image << ", " << resolution << ", " << cpu_time << ", " << opencl_time << ", " << ", " << opencl_kernel_time << ", " << mae << "\n";
+        file << timestamp << ", " << image << ", " << resolution << ", " << cpu_time << ", " << opencl_time << ", " << opencl_kernel_time << ", " << mae << "\n";
     }
     file.close();
 }
