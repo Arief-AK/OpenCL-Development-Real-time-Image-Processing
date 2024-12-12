@@ -91,11 +91,11 @@ void GetImageCPU(cv::Mat* input_image, std::string image_path, Logger& logger){
 }
 
 std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl_command_queue* command_queue,
-    cl_kernel* kernel, double* opencl_execution_time, cl_ulong* opencl_event_start,
-    cl_ulong* opencl_event_end, cl_int& width, cl_int& height, Logger& logger){
+    cl_kernel* kernel, double* opencl_execution_time, double& opencl_kernel_execution_time, cl_int& width, cl_int& height, Logger& logger){
     // Initialise image variables
     std::vector<unsigned char> input_data;
     std::vector<unsigned char> output_data;
+    cl_ulong opencl_event_start, opencl_event_end;
     cl_int err_num;
 
     // Get image
@@ -143,20 +143,21 @@ std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl
     // End profiling execution time
     auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
 
+    // Get the RAW kernel timing using OpenCL events
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &opencl_event_start, NULL);    
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &opencl_event_end, NULL);
+
     // Convert timings into string
     std::ostringstream str_start, str_end;
-    str_start << *opencl_event_start;
-    str_end << *opencl_event_end;
-
-    // Get the RAW kernel timing using OpenCL events
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), opencl_event_start, NULL);    
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), opencl_event_end, NULL);
+    str_start << opencl_event_start;
+    str_end << opencl_event_end;
 
     logger.log("Event start: " + str_start.str(), Logger::LogLevel::INFO);
     logger.log("Event end: " + str_end.str(), Logger::LogLevel::INFO);
 
-    // Calculate the execution time
+    // Calculate the execution time(s)
     *opencl_execution_time = std::chrono::duration<double, std::milli>(opencl_execution_time_end - opencl_execution_time_start).count();
+    opencl_kernel_execution_time = (opencl_event_end - opencl_event_start) * 1e-6;
 
     return output_data;
 }
@@ -192,24 +193,21 @@ void PrintEndToEndExecutionTime(std::string method, double total_execution_time_
     logger.log("-------------------- END OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
 }
 
-void PrintRawKernelExecutionTime(cl_ulong start, cl_ulong end, Logger& logger){
-    // Print the RAW kernel execution time
-    double time_ms = (end - start) * 1e-6;
-
+void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, Logger& logger){
     logger.log("-------------------- START OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
 
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(10) << "Kernel execution time: " << time_ms << " ms";
+    oss << std::fixed << std::setprecision(10) << "Kernel execution time: " << opencl_kernel_execution_time << " ms";
     logger.log(oss.str(), Logger::LogLevel::INFO);
 
     logger.log("-------------------- END OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
 }
 
-void PrintSummary(cl_ulong& opencl_event_start, cl_ulong& opencl_event_end,
-    double& opencl_execution_time, double& cpu_execution_time, Logger& logger){
+void PrintSummary(double& opencl_kernel_execution_time, double& opencl_execution_time,
+    double& cpu_execution_time, Logger& logger){
     std::cout << "\n **************************************** START OF OpenCL SUMMARY **************************************** " << std::endl;
     PrintEndToEndExecutionTime("OpenCL", opencl_execution_time, logger);
-    PrintRawKernelExecutionTime(opencl_event_start, opencl_event_end, logger);
+    PrintRawKernelExecutionTime(opencl_kernel_execution_time, logger);
     std::cout << " **************************************** END OF OpenCL SUMMARY **************************************** " << std::endl;
 
     std::cout << "\n **************************************** START OF CPU SUMMARY **************************************** " << std::endl;
@@ -231,11 +229,11 @@ void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
     }
 }
 
-void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, double, double, double>>& results){
+void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, double, double, double, double>>& results){
     std::ofstream file(filename);
-    file << "Timestamp, Image, Resolution, CPU_Time_ms, OpenCL_Time_ms, Error_MAE\n";
-    for (const auto& [timestamp, image, resolution, cpu_time, opencl_time, mae] : results) {
-        file << timestamp << ", " << image << ", " << resolution << ", " << cpu_time << ", " << opencl_time << ", " << mae << "\n";
+    file << "Timestamp, Image, Resolution, CPU_Time_ms, OpenCL_Time_ms, OpenCL_kernel_ms, Error_MAE\n";
+    for (const auto& [timestamp, image, resolution, cpu_time, opencl_time, opencl_kernel_time, mae] : results) {
+        file << timestamp << ", " << image << ", " << resolution << ", " << cpu_time << ", " << opencl_time << ", " << ", " << opencl_kernel_time << ", " << mae << "\n";
     }
     file.close();
 }
@@ -257,10 +255,9 @@ int main(int, char**){
     cl_program program;
     cl_kernel kernel;
     cl_int err_num = 0;
-    cl_ulong opencl_event_start, opencl_event_end;
 
     // Initialise results vector
-    std::vector<std::tuple<std::string, std::string, std::string, double, double, double>> comparison_results;
+    std::vector<std::tuple<std::string, std::string, std::string, double, double, double, double>> comparison_results;
 
     // Initialise OpenCL platforms and devices
     InitOpenCL(&context, &command_queue, &program, &kernel);
@@ -276,11 +273,12 @@ int main(int, char**){
         // Initialise comparison variables
         cv::Mat cpu_output_image;
         double opencl_execution_time = {};
+        double opencl_kernel_execution_time = {};
         double cpu_execution_time = {};
 
         // Perform OpenCL and get output data
         auto output_data = PerformOpenCL(image_path, &context, &command_queue,
-            &kernel, &opencl_execution_time, &opencl_event_start, &opencl_event_end, width, height, logger);
+            &kernel, &opencl_execution_time, opencl_kernel_execution_time, width, height, logger);
         
         cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
         SaveImages(image_path, opencl_output_image);
@@ -303,10 +301,10 @@ int main(int, char**){
             std::string resolution = str_width.str()  + "x" + str_height.str();
 
             // Append to the comparison result vector
-            comparison_results.emplace_back(timestamp, image_path, resolution, cpu_execution_time, opencl_execution_time, average);
+            comparison_results.emplace_back(timestamp, image_path, resolution, cpu_execution_time, opencl_execution_time, opencl_kernel_execution_time, average);
 
             // Print summary
-            PrintSummary(opencl_event_start, opencl_event_end, opencl_execution_time, cpu_execution_time, logger);
+            PrintSummary(opencl_kernel_execution_time, opencl_execution_time, cpu_execution_time, logger);
 
             // Write results to CSV
             WriteResultsToCSV(OUTPUT_FILE, comparison_results);
