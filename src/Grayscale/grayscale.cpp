@@ -231,11 +231,11 @@ void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
     }
 }
 
-void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, double, double, double>>& results){
+void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, double, double, double>>& results){
     std::ofstream file(filename);
-    file << "Image, Resolution, CPU_Time_ms, OpenCL_Time_ms, Error_MAE\n";
-    for (const auto& [image, resolution, cpu_time, opencl_time, mae] : results) {
-        file << image << ", " << resolution << ", " << cpu_time << ", " << opencl_time << ", " << mae << "\n";
+    file << "Timestamp, Image, Resolution, CPU_Time_ms, OpenCL_Time_ms, Error_MAE\n";
+    for (const auto& [timestamp, image, resolution, cpu_time, opencl_time, mae] : results) {
+        file << timestamp << ", " << image << ", " << resolution << ", " << cpu_time << ", " << opencl_time << ", " << mae << "\n";
     }
     file.close();
 }
@@ -260,7 +260,7 @@ int main(int, char**){
     cl_ulong opencl_event_start, opencl_event_end;
 
     // Initialise results vector
-    std::vector<std::tuple<std::string, std::string, double, double, double>> comparison_results;
+    std::vector<std::tuple<std::string, std::string, std::string, double, double, double>> comparison_results;
 
     // Initialise OpenCL platforms and devices
     InitOpenCL(&context, &command_queue, &program, &kernel);
@@ -293,6 +293,9 @@ int main(int, char**){
             // Calculate Mean Absolute Error and push into results vector
             auto average = ComputeMAE(cpu_output_image, opencl_output_image);
             
+            // Get timestamp
+            auto timestamp = logger.getCurrentTime();
+            
             // Get the resolution
             std::ostringstream str_width, str_height;
             str_width << width;
@@ -300,7 +303,7 @@ int main(int, char**){
             std::string resolution = str_width.str()  + "x" + str_height.str();
 
             // Append to the comparison result vector
-            comparison_results.emplace_back(image_path, resolution, cpu_execution_time, opencl_execution_time, average);
+            comparison_results.emplace_back(timestamp, image_path, resolution, cpu_execution_time, opencl_execution_time, average);
 
             // Print summary
             PrintSummary(opencl_event_start, opencl_event_end, opencl_execution_time, cpu_execution_time, logger);

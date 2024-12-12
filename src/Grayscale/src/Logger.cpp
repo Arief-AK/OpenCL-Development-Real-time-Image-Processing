@@ -13,7 +13,7 @@ Logger::~Logger() {
     }
 }
 
-std::string Logger::_getCurrentTime()
+std::string Logger::getCurrentTime()
 {
     std::time_t now = std::time(nullptr);
     std::tm* localTime = std::localtime(&now);
@@ -53,7 +53,7 @@ void Logger::setLogFile(const std::string &file_name)
 void Logger::log(const std::string &message, LogLevel level)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    std::string timestamp = _getCurrentTime();
+    std::string timestamp = getCurrentTime();
     std::string level_str = _printLogLevel(level);
     std::string log_message = "[" + timestamp + "]" + "[" + level_str + "] " + message;
 

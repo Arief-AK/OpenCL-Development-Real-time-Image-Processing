@@ -21,6 +21,8 @@ public:
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
 
+    std::string getCurrentTime();
+
     static Logger& getInstance();
     void setLogFile(const std::string& file_name);
     void log(const std::string& message, LogLevel level);
@@ -32,7 +34,6 @@ private:
     Logger();
     ~Logger();
 
-    std::string _getCurrentTime();
     std::string _printLogLevel(LogLevel level);
 };
 
