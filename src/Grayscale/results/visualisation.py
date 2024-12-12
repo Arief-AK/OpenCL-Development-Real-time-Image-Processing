@@ -2,6 +2,10 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# 0 - Linux
+# 1 - Windows
+USING_OS = 1
+
 def CleanData(data: pd.DataFrame) -> pd.DataFrame:
     # Strip whitespace from column names
     data.columns = data.columns.str.strip()
@@ -67,7 +71,12 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # Build the absolute path
-    csv_path = os.path.abspath(os.path.join(script_dir, "../../../build/src/Grayscale/results.csv"))
+    if USING_OS == 0:
+        csv_path = os.path.abspath(os.path.join(script_dir, "../../../build/src/Grayscale/results.csv"))    # Linux
+    elif USING_OS == 1:
+        csv_path = os.path.abspath(os.path.join(script_dir, "../../../build/src/Grayscale/Debug/results.csv"))    # Windows
+    else:
+        print("Unrecognised OS")
 
     print(f"Looking for the csv in: {csv_path}")
 
