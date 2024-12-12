@@ -36,6 +36,7 @@ set(HEADERS
     include/InfoPlatform.hpp
     include/Controller.hpp
     include/FileHandler.hpp
+    include/Logger.hpp
 )
 
 # Collect matching sources based on the headers
@@ -58,37 +59,25 @@ message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})
 # Find all images in the source images directory
 file(GLOB IMAGE_FILES "${IMAGES_SOURCE_DIR}/*.*") # Match all files in the directory
 
+# Define the target image directory
+if(WIN32)
+    set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/Debug/images)
+elseif(UNIX AND NOT APPLE)
+    set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/images)
+endif()
+
+# Ensure the target directory is cleaned up
+if(EXISTS ${IMAGES_BINARY_DIR})
+    file(REMOVE_RECURSE ${IMAGES_BINARY_DIR})
+endif()
+
+# Make an empty directory
+file(MAKE_DIRECTORY ${IMAGES_BINARY_DIR})
+
 # Copy each image file to the target images directory
 foreach(IMAGE_FILE ${IMAGE_FILES})
-    if(WIN32)
-        # Define the target image directory and ensure the target images directory exists
-        set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/Debug/images)
-        
-        # Ensure the target directory is cleaned up
-        if(EXISTS ${IMAGES_BINARY_DIR})
-            file(REMOVE_RECURSE ${IMAGES_BINARY_DIR})
-        endif()
-        
-        # Make an empty directory
-        file(MAKE_DIRECTORY ${IMAGES_BINARY_DIR})
-
-        get_filename_component(IMAGE_NAME ${IMAGE_FILE} NAME)
-        configure_file(${IMAGE_FILE} ${IMAGES_BINARY_DIR}/${IMAGE_NAME} COPYONLY)
-    elseif(UNIX AND NOT APPLE)
-        # Define the target image directory and ensure the target images directory exists
-        set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/images)
-        
-        # Ensure the target directory is cleaned up
-        if(EXISTS ${IMAGES_BINARY_DIR})
-            file(REMOVE_RECURSE ${IMAGES_BINARY_DIR})
-        endif()
-        
-        # Make an empty directory
-        file(MAKE_DIRECTORY ${IMAGES_BINARY_DIR})
-
-        get_filename_component(IMAGE_NAME ${IMAGE_FILE} NAME)
-        configure_file(${IMAGE_FILE} ${IMAGES_BINARY_DIR}/${IMAGE_NAME} COPYONLY)
-    endif()
+    get_filename_component(IMAGE_NAME ${IMAGE_FILE} NAME)
+    configure_file(${IMAGE_FILE} ${IMAGES_BINARY_DIR}/${IMAGE_NAME} COPYONLY)
 endforeach()
 message(STATUS "Image sources have re-located to: " ${IMAGES_BINARY_DIR})
 
