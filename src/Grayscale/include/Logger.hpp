@@ -25,11 +25,13 @@ public:
 
     static Logger& getInstance();
     void setLogFile(const std::string& file_name);
+    void setTerminalDisplay(bool print_on_terminal);
     void log(const std::string& message, LogLevel level);
 
 private:
     std::ofstream m_log_file;
     std::mutex m_mutex;
+    bool m_print_terminal;
 
     Logger();
     ~Logger();

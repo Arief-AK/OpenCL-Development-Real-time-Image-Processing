@@ -11,8 +11,9 @@
 #define DEVICE_INDEX 0
 
 bool PERFORM_COMP = true;
-bool SAVE_IMAGES = true;
+bool SAVE_IMAGES = false;
 bool DISPLAY_IMAGES = false;
+bool DISPLAY_TERMINAL_RESULTS = false;
 
 std::string TEST_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
@@ -205,14 +206,21 @@ void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, Logger& l
 
 void PrintSummary(double& opencl_kernel_execution_time, double& opencl_execution_time,
     double& cpu_execution_time, Logger& logger){
-    std::cout << "\n **************************************** START OF OpenCL SUMMARY **************************************** " << std::endl;
+    if(DISPLAY_TERMINAL_RESULTS)
+        std::cout << "\n **************************************** START OF OpenCL SUMMARY **************************************** " << std::endl;
+    
     PrintEndToEndExecutionTime("OpenCL", opencl_execution_time, logger);
     PrintRawKernelExecutionTime(opencl_kernel_execution_time, logger);
-    std::cout << " **************************************** END OF OpenCL SUMMARY **************************************** " << std::endl;
+    
+    if(DISPLAY_TERMINAL_RESULTS){
+        std::cout << " **************************************** END OF OpenCL SUMMARY **************************************** " << std::endl;
+        std::cout << "\n **************************************** START OF CPU SUMMARY **************************************** " << std::endl;
+    }
 
-    std::cout << "\n **************************************** START OF CPU SUMMARY **************************************** " << std::endl;
     PrintEndToEndExecutionTime("CPU", cpu_execution_time, logger);
-    std::cout << "\n **************************************** END OF CPU SUMMARY **************************************** " << std::endl;
+
+    if(DISPLAY_TERMINAL_RESULTS)
+        std::cout << "\n **************************************** END OF CPU SUMMARY **************************************** " << std::endl;
 }
 
 double ComputeMAE(const cv::Mat& reference, const cv::Mat& result){
@@ -244,6 +252,7 @@ int main(int, char**){
     // Initialise (singleton) Logger
     Logger& logger = Logger::getInstance();
     InitLogger(logger);
+    logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
     logger.log("Initialised logger", Logger::LogLevel::INFO);
     
     // Initialise FileHandler

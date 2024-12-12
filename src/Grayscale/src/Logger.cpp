@@ -50,6 +50,11 @@ void Logger::setLogFile(const std::string &file_name)
     }
 }
 
+void Logger::setTerminalDisplay(bool print_on_terminal)
+{
+    print_on_terminal = m_print_terminal;
+}
+
 void Logger::log(const std::string &message, LogLevel level)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -58,7 +63,8 @@ void Logger::log(const std::string &message, LogLevel level)
     std::string log_message = "[" + timestamp + "]" + "[" + level_str + "] " + message;
 
     // Print to terminal
-    std::cout << log_message << std::endl;
+    if(m_print_terminal)
+        std::cout << log_message << std::endl;
 
     if(m_log_file.is_open()){
         m_log_file << log_message << std::endl;
