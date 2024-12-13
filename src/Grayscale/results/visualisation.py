@@ -2,9 +2,9 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# 0 - Windows
-# 1 - Linux
-USING_OS = 0
+# 0 - Linux
+# 1 - Windows
+USING_OS = 1
 SHOW_FIGURES = False
 SHOW_TERMINAL_OUTPUT = False
 SAVE_DATAFRAME = True
