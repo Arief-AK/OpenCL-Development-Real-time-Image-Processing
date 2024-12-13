@@ -10,6 +10,8 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
+int NUMBER_OF_ITERATIONS = 10;
+
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
 bool DISPLAY_IMAGES = false;
@@ -92,11 +94,12 @@ void GetImageCPU(cv::Mat* input_image, std::string image_path, Logger& logger){
 }
 
 std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl_command_queue* command_queue,
-    cl_kernel* kernel, double* opencl_execution_time, double& opencl_kernel_execution_time, cl_int& width, cl_int& height, Logger& logger){
+    cl_kernel* kernel, double& avg_opencl_execution_time, double& avg_opencl_kernel_execution_time,
+    cl_int& width, cl_int& height, Logger& logger){
+    
     // Initialise image variables
     std::vector<unsigned char> input_data;
     std::vector<unsigned char> output_data;
-    cl_ulong opencl_event_start, opencl_event_end;
     cl_int err_num;
 
     // Get image
@@ -105,60 +108,73 @@ std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl
     // Initialise the global work size for kernel execution
     size_t global_work_size[] = {static_cast<size_t>(width), static_cast<size_t>(height)};
 
-    // Start profiling execution time
-    auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
+    // Initialise average variables
+    double total_execution_time = 0.0;
+    double total_kernel_execution_time = 0.0;
 
-    // Create buffers
-    auto input_buffer = clCreateBuffer(*context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned char) * input_data.size(), input_data.data(), &err_num);
-    if(err_num != CL_SUCCESS){
-        logger.log("Failed to create input buffer", Logger::LogLevel::ERROR);        
+    for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
+        // Initialise events for profiling
+        cl_ulong opencl_event_start, opencl_event_end;
+
+        // Start profiling execution time
+        auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
+
+        // Create buffers
+        auto input_buffer = clCreateBuffer(*context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned char) * input_data.size(), input_data.data(), &err_num);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed to create input buffer", Logger::LogLevel::ERROR);        
+        }
+        auto output_buffer = clCreateBuffer(*context, CL_MEM_WRITE_ONLY, sizeof(unsigned char) * output_data.size(), nullptr, &err_num);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed to create output buffer", Logger::LogLevel::ERROR);
+        }
+
+        // Assign the kernel arguments
+        err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &input_buffer);
+        err_num |= clSetKernelArg(*kernel, 1, sizeof(cl_mem), &output_buffer);
+        err_num |= clSetKernelArg(*kernel, 2, sizeof(int), &width);
+        err_num |= clSetKernelArg(*kernel, 3, sizeof(int), &height);
+
+        // Create an event
+        cl_event event;
+
+        err_num = clEnqueueNDRangeKernel(*command_queue, *kernel, 2, nullptr, global_work_size, nullptr, 0, nullptr, &event);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
+        }
+
+        // Wait for the event to complete
+        clWaitForEvents(1, &event);
+
+        // Read the buffer
+        err_num  = clEnqueueReadBuffer(*command_queue, output_buffer, CL_TRUE, 0, sizeof(unsigned char) * output_data.size(), output_data.data(), 0, nullptr, nullptr);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed to read buffer", Logger::LogLevel::ERROR);
+        }
+
+        // End profiling execution time
+        auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
+
+        // Get the RAW kernel timing using OpenCL events
+        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &opencl_event_start, NULL);    
+        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &opencl_event_end, NULL);
+
+        // Convert timings into string
+        std::ostringstream str_start, str_end;
+        str_start << opencl_event_start;
+        str_end << opencl_event_end;
+
+        logger.log("Event start: " + str_start.str(), Logger::LogLevel::INFO);
+        logger.log("Event end: " + str_end.str(), Logger::LogLevel::INFO);
+
+        // Calculate total execution time(s)
+        total_execution_time += std::chrono::duration<double, std::milli>(opencl_execution_time_end - opencl_execution_time_start).count();
+        total_kernel_execution_time += (opencl_event_end - opencl_event_start) * 1e-6;
     }
-    auto output_buffer = clCreateBuffer(*context, CL_MEM_WRITE_ONLY, sizeof(unsigned char) * output_data.size(), nullptr, &err_num);
-    if(err_num != CL_SUCCESS){
-        logger.log("Failed to create output buffer", Logger::LogLevel::ERROR);
-    }
 
-    // Assign the kernel arguments
-    err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &input_buffer);
-    err_num |= clSetKernelArg(*kernel, 1, sizeof(cl_mem), &output_buffer);
-    err_num |= clSetKernelArg(*kernel, 2, sizeof(int), &width);
-    err_num |= clSetKernelArg(*kernel, 3, sizeof(int), &height);
-
-    // Create an event
-    cl_event event;
-
-    err_num = clEnqueueNDRangeKernel(*command_queue, *kernel, 2, nullptr, global_work_size, nullptr, 0, nullptr, &event);
-    if(err_num != CL_SUCCESS){
-        logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
-    }
-
-    // Wait for the event to complete
-    clWaitForEvents(1, &event);
-
-    // Read the buffer
-    err_num  = clEnqueueReadBuffer(*command_queue, output_buffer, CL_TRUE, 0, sizeof(unsigned char) * output_data.size(), output_data.data(), 0, nullptr, nullptr);
-    if(err_num != CL_SUCCESS){
-        logger.log("Failed to read buffer", Logger::LogLevel::ERROR);
-    }
-
-    // End profiling execution time
-    auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
-
-    // Get the RAW kernel timing using OpenCL events
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &opencl_event_start, NULL);    
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &opencl_event_end, NULL);
-
-    // Convert timings into string
-    std::ostringstream str_start, str_end;
-    str_start << opencl_event_start;
-    str_end << opencl_event_end;
-
-    logger.log("Event start: " + str_start.str(), Logger::LogLevel::INFO);
-    logger.log("Event end: " + str_end.str(), Logger::LogLevel::INFO);
-
-    // Calculate the execution time(s)
-    *opencl_execution_time = std::chrono::duration<double, std::milli>(opencl_execution_time_end - opencl_execution_time_start).count();
-    opencl_kernel_execution_time = (opencl_event_end - opencl_event_start) * 1e-6;
+    // Calculate averages
+    avg_opencl_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
+    avg_opencl_kernel_execution_time = total_kernel_execution_time / NUMBER_OF_ITERATIONS;
 
     return output_data;
 }
@@ -239,9 +255,9 @@ void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
 
 void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, double, double, double, double>>& results){
     std::ofstream file(filename);
-    file << "Timestamp, Image, Resolution, CPU_Time_ms, OpenCL_Time_ms, OpenCL_kernel_ms, Error_MAE\n";
-    for (const auto& [timestamp, image, resolution, cpu_time, opencl_time, opencl_kernel_time, mae] : results) {
-        file << timestamp << ", " << image << ", " << resolution << ", " << cpu_time << ", " << opencl_time << ", " << opencl_kernel_time << ", " << mae << "\n";
+    file << "Timestamp, Image, Resolution, CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, Error_MAE\n";
+    for (const auto& [timestamp, image, resolution, cpu_time, avg_opencl_time, avg_opencl_kernel_time, mae] : results) {
+        file << timestamp << ", " << image << ", " << resolution << ", " << cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", " << mae << "\n";
     }
     file.close();
 }
@@ -281,13 +297,14 @@ int main(int, char**){
         
         // Initialise comparison variables
         cv::Mat cpu_output_image;
-        double opencl_execution_time = {};
-        double opencl_kernel_execution_time = {};
+        double avg_opencl_execution_time = {};
+        double avg_opencl_kernel_execution_time = {};
         double cpu_execution_time = {};
 
         // Perform OpenCL and get output data
         auto output_data = PerformOpenCL(image_path, &context, &command_queue,
-            &kernel, &opencl_execution_time, opencl_kernel_execution_time, width, height, logger);
+            &kernel, avg_opencl_execution_time, avg_opencl_kernel_execution_time,
+            width, height, logger);
         
         cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
         SaveImages(image_path, opencl_output_image);
@@ -310,10 +327,10 @@ int main(int, char**){
             std::string resolution = str_width.str()  + "x" + str_height.str();
 
             // Append to the comparison result vector
-            comparison_results.emplace_back(timestamp, image_path, resolution, cpu_execution_time, opencl_execution_time, opencl_kernel_execution_time, average);
+            comparison_results.emplace_back(timestamp, image_path, resolution, cpu_execution_time, avg_opencl_execution_time, avg_opencl_kernel_execution_time, average);
 
             // Print summary
-            PrintSummary(opencl_kernel_execution_time, opencl_execution_time, cpu_execution_time, logger);
+            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_execution_time, cpu_execution_time, logger);
 
             // Write results to CSV
             WriteResultsToCSV(OUTPUT_FILE, comparison_results);
