@@ -10,7 +10,7 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-int NUMBER_OF_ITERATIONS = 10;
+int NUMBER_OF_ITERATIONS = 100;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
@@ -179,7 +179,7 @@ std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl
     return output_data;
 }
 
-cv::Mat PerformCPU(std::string image_path, double* execution_time, Logger& logger){
+cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logger& logger){
     // Initialise variables
     cv::Mat input_image;
     cv::Mat output_image;
@@ -187,15 +187,22 @@ cv::Mat PerformCPU(std::string image_path, double* execution_time, Logger& logge
     // Get image using OpenCV
     GetImageCPU(&input_image, image_path, logger);
 
-    // Convert the image to grayscale and perform execution time profiling
-    auto start = std::chrono::high_resolution_clock::now();
-    cv::cvtColor(input_image, output_image, cv::COLOR_RGBA2GRAY);
-    auto end = std::chrono::high_resolution_clock::now();
+    // Initialise average variables
+    double total_execution_time = 0.0;
+
+    for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
+        // Convert the image to grayscale and perform execution time profiling
+        auto start = std::chrono::high_resolution_clock::now();
+        cv::cvtColor(input_image, output_image, cv::COLOR_RGBA2GRAY);
+        auto end = std::chrono::high_resolution_clock::now();
+
+        total_execution_time += std::chrono::duration<double, std::milli>(end - start).count();
+    }
 
     logger.log("CPU Grayscale conversion complete", Logger::LogLevel::INFO);
 
-    // Print results
-    *execution_time = std::chrono::duration<double, std::milli>(end - start).count();
+    // Calculate average
+    avg_cpu_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
 
     return output_image;
 }
@@ -253,11 +260,11 @@ void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
     }
 }
 
-void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, double, double, double, double>>& results){
+void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double>>& results){
     std::ofstream file(filename);
-    file << "Timestamp, Image, Resolution, CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, Error_MAE\n";
-    for (const auto& [timestamp, image, resolution, cpu_time, avg_opencl_time, avg_opencl_kernel_time, mae] : results) {
-        file << timestamp << ", " << image << ", " << resolution << ", " << cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", " << mae << "\n";
+    file << "Timestamp, Image, Resolution, Num_Iterations, CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, Error_MAE\n";
+    for (const auto& [timestamp, image, resolution, num_iterations, cpu_time, avg_opencl_time, avg_opencl_kernel_time, mae] : results) {
+        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", " << mae << "\n";
     }
     file.close();
 }
@@ -282,7 +289,7 @@ int main(int, char**){
     cl_int err_num = 0;
 
     // Initialise results vector
-    std::vector<std::tuple<std::string, std::string, std::string, double, double, double, double>> comparison_results;
+    std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double>> comparison_results;
 
     // Initialise OpenCL platforms and devices
     InitOpenCL(&context, &command_queue, &program, &kernel);
@@ -299,7 +306,7 @@ int main(int, char**){
         cv::Mat cpu_output_image;
         double avg_opencl_execution_time = {};
         double avg_opencl_kernel_execution_time = {};
-        double cpu_execution_time = {};
+        double avg_cpu_execution_time = {};
 
         // Perform OpenCL and get output data
         auto output_data = PerformOpenCL(image_path, &context, &command_queue,
@@ -312,10 +319,10 @@ int main(int, char**){
 
         // Perform OpenCL vs CPU comparison
         if(PERFORM_COMP){
-            cpu_output_image = PerformCPU(image_path, &cpu_execution_time, logger);
+            cpu_output_image = PerformCPU(image_path, avg_cpu_execution_time, logger);
             
             // Calculate Mean Absolute Error and push into results vector
-            auto average = ComputeMAE(cpu_output_image, opencl_output_image);
+            auto MAE = ComputeMAE(cpu_output_image, opencl_output_image);
             
             // Get timestamp
             auto timestamp = logger.getCurrentTime();
@@ -327,10 +334,12 @@ int main(int, char**){
             std::string resolution = str_width.str()  + "x" + str_height.str();
 
             // Append to the comparison result vector
-            comparison_results.emplace_back(timestamp, image_path, resolution, cpu_execution_time, avg_opencl_execution_time, avg_opencl_kernel_execution_time, average);
+            comparison_results.emplace_back(timestamp, image_path, resolution, NUMBER_OF_ITERATIONS,
+                                            avg_cpu_execution_time, avg_opencl_execution_time,
+                                            avg_opencl_kernel_execution_time, MAE);
 
             // Print summary
-            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_execution_time, cpu_execution_time, logger);
+            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_execution_time, avg_cpu_execution_time, logger);
 
             // Write results to CSV
             WriteResultsToCSV(OUTPUT_FILE, comparison_results);
