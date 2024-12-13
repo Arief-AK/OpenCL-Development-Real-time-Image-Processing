@@ -97,6 +97,8 @@ std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl
     cl_kernel* kernel, double& avg_opencl_execution_time, double& avg_opencl_kernel_execution_time,
     cl_int& width, cl_int& height, Logger& logger){
     
+    std::cout << "Performing OpenCL grayscaling on " << image_path << "..." << std::endl;
+
     // Initialise image variables
     std::vector<unsigned char> input_data;
     std::vector<unsigned char> output_data;
@@ -172,6 +174,8 @@ std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl
         total_kernel_execution_time += (opencl_event_end - opencl_event_start) * 1e-6;
     }
 
+    logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
+
     // Calculate averages
     avg_opencl_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
     avg_opencl_kernel_execution_time = total_kernel_execution_time / NUMBER_OF_ITERATIONS;
@@ -180,6 +184,8 @@ std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl
 }
 
 cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logger& logger){
+    std::cout << "Performing CPU grayscaling on " << image_path << "..." << std::endl;
+    
     // Initialise variables
     cv::Mat input_image;
     cv::Mat output_image;
@@ -315,7 +321,6 @@ int main(int, char**){
         
         cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
         SaveImages(image_path, opencl_output_image);
-        logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
 
         // Perform OpenCL vs CPU comparison
         if(PERFORM_COMP){
@@ -352,5 +357,6 @@ int main(int, char**){
         }
     }
 
+    std::cout << "Done!" << std::endl;
     return 0;
 }

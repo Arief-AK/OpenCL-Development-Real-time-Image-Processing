@@ -27,19 +27,19 @@ def CleanData(data: pd.DataFrame) -> pd.DataFrame:
 
 # CPU vs OpenCL (end-to-end)
 def CPUvsOpenCLEndtoEnd(ax, data: pd.DataFrame):
-    ax.plot(data['Pixel Count'], data['CPU_Time_ms'], label='CPU Time (ms)', marker='o')
-    ax.plot(data['Pixel Count'], data['OpenCL_Time_ms'], label='OpenCL Time (ms)', marker='o')
+    ax.plot(data['Pixel Count'], data['avg_CPU_Time_ms'], label='avg_CPU Time (ms)', marker='o')
+    ax.plot(data['Pixel Count'], data['avg_OpenCL_Time_ms'], label='avg_OpenCL Time (ms)', marker='o')
     ax.set_xlabel('Pixel Count (Resolution)')
-    ax.set_ylabel('Execution Time (ms)')
+    ax.set_ylabel('Average Execution Time (ms)')
     ax.set_title('CPU vs OpenCL Execution Time')
     ax.legend()
     ax.grid(True)
 
 # OpenCL kernel vs OpenCL Total Time
 def KernelvsOpenCLTotal(ax, data: pd.DataFrame):
-    ax.plot(data['Pixel Count'], data['OpenCL_Time_ms'], label='Total OpenCL Time (ms)', marker='o')
-    ax.plot(data['Pixel Count'], data['OpenCL_kernel_ms'], label='OpenCL Kernel Time (ms)', marker='o')
-    ax.set_title('OpenCL Total vs Kernel Time')
+    ax.plot(data['Pixel Count'], data['avg_OpenCL_Time_ms'], label='Total OpenCL Time (ms)', marker='o')
+    ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_ms'], label='OpenCL Kernel Time (ms)', marker='o')
+    ax.set_title('Average OpenCL Total vs Average Kernel Time')
     ax.set_xlabel('Pixel Count (Resolution)')
     ax.set_ylabel('Time (ms)')
     ax.legend()
@@ -48,7 +48,7 @@ def KernelvsOpenCLTotal(ax, data: pd.DataFrame):
 # OpenCL vs CPU speedup factor
 def SpeedFactor(ax, data: pd.DataFrame):
     # Calculate the speedup factor
-    data['Speedup'] = data['CPU_Time_ms'] / data['OpenCL_Time_ms']
+    data['Speedup'] = data['avg_CPU_Time_ms'] / data['avg_OpenCL_Time_ms']
 
     ax.plot(data['Pixel Count'], data['Speedup'], label='Speedup', marker='o')
     ax.axhline(1, color='red', linestyle='--', label='No Speedup')
