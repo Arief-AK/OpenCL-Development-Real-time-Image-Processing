@@ -262,9 +262,9 @@ void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
 
 void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double>>& results){
     std::ofstream file(filename);
-    file << "Timestamp, Image, Resolution, Num_Iterations, CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, Error_MAE\n";
-    for (const auto& [timestamp, image, resolution, num_iterations, cpu_time, avg_opencl_time, avg_opencl_kernel_time, mae] : results) {
-        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", " << mae << "\n";
+    file << "Timestamp, Image, Resolution, Num_Iterations, avg_CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, Error_MAE\n";
+    for (const auto& [timestamp, image, resolution, num_iterations, avg_cpu_time, avg_opencl_time, avg_opencl_kernel_time, mae] : results) {
+        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << avg_cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", " << mae << "\n";
     }
     file.close();
 }
