@@ -2,9 +2,12 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# 0 - Linux
-# 1 - Windows
-USING_OS = 1
+# 0 - Windows
+# 1 - Linux
+USING_OS = 0
+SHOW_FIGURES = False
+SHOW_TERMINAL_OUTPUT = False
+SAVE_DATAFRAME = True
 
 def CleanData(data: pd.DataFrame) -> pd.DataFrame:
     # Strip whitespace from column names
@@ -70,18 +73,23 @@ if __name__ == "__main__":
     # Get the current script's directory
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
+    os_name = ""
+
     # Build the absolute path
     if USING_OS == 0:
+        os_name = "Linux"
         csv_path = os.path.abspath(os.path.join(script_dir, "../../../build/src/Grayscale/results.csv"))    # Linux
     elif USING_OS == 1:
+        os_name = "Windows"
         csv_path = os.path.abspath(os.path.join(script_dir, "../../../build/src/Grayscale/Debug/results.csv"))    # Windows
     else:
+        os_name = "UNDEFINED"
         print("Unrecognised OS")
 
     print(f"Looking for the csv in: {csv_path}")
 
     # Load the csv file
-    data = pd.read_csv(csv_path, delimiter=',')  # Linux
+    data = pd.read_csv(csv_path, delimiter=',')
 
     # Data exists
     if not data.empty:
@@ -90,9 +98,16 @@ if __name__ == "__main__":
         # Group the data by 'Image_Name' and create separate sorted DataFrames
         image_groups = {name: group for name, group in data.groupby('Image_Name')}
 
+        # Create a directory for saving the figures
+        figures_dir = os.path.join(script_dir, "figures")
+        os.makedirs(figures_dir, exist_ok=True)
+
         # Iterate through each group and create a separate plot
         for image_name, group_data in image_groups.items():
-            print(f"Generating plots for {image_name}...")
+            print(f"\nGenerating plots for {image_name}...")
+
+            # Get number of iterations
+            num_iterations = group_data['Num_Iterations'].iloc[0]
 
             # Create subplots for this image group
             fig, ax = plt.subplots(2, 2, figsize=(12, 10))
@@ -103,11 +118,27 @@ if __name__ == "__main__":
             MAE(ax[1, 1], group_data)
 
             # Set the overall title for the group
-            fig.suptitle(f'Performance Metrics for {image_name}', fontsize=16)
+            fig.suptitle(f'Performance Metrics for {image_name} on {os_name}', fontsize=16)
 
             # Set the figure window title
             plt.gcf().canvas.manager.set_window_title(f"Performance Metrics - {image_name}")
 
             # Adjust layout and show the plot
             plt.tight_layout(rect=[0, 0, 1, 0.95])
-            plt.show()
+            
+            if SHOW_FIGURES:
+                plt.show()
+
+            if SHOW_TERMINAL_OUTPUT:
+                print(f"{group_data}")
+
+            if SAVE_DATAFRAME:
+                # Save the figure
+                figure_path = os.path.join(figures_dir, f"{os_name}_{num_iterations}_{image_name}_performance_metrics.png")
+                fig.savefig(figure_path, dpi=300)
+                print(f"Saved figures in: {figure_path}")
+
+                # Save dataframe to csv
+                csv_result_path = os.path.abspath(os.path.join(script_dir, f"{os_name}_{num_iterations}_{image_name}_sorted_results.csv"))
+                group_data.to_csv(csv_result_path, index=False)
+                print(f"Saved csv in: {csv_result_path}")
