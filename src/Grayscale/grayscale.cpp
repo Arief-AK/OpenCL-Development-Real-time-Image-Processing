@@ -83,6 +83,16 @@ void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_da
     // Flatten image into uchar array
     std::vector<unsigned char> _input_data(image.data, image.data + image.total() * 4);
 
+    cv::Mat rgba_image(*height, *width, CV_8UC4, const_cast<unsigned char*>(_input_data.data()));
+
+    // Convert RGBA to BGR for displaying
+    cv::Mat bgr_image;
+    cv::cvtColor(rgba_image, bgr_image, cv::COLOR_RGBA2BGR);
+
+    // Display the image
+    cv::imshow("Image from Input Data", bgr_image);
+    cv::waitKey(0); // Wait for a key press
+
     // Assign parameters
     *input_data = _input_data;
 }
@@ -150,8 +160,11 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         output_format.image_channel_data_type = CL_FLOAT;
 
         // Initialise the global work size for kernel execution
-        size_t global_work_size[2] = {static_cast<size_t>(width), static_cast<size_t>(height)};
-        // size_t local_work_size[2] = {16, 16};
+        size_t global_work_size[2] = {width, height};
+
+        // unsigned char numbers[8] = {22, 2, 3, 4, 5, 6, 7, 8};
+        // size_t num_origin[3] = {0, 0, 0};
+        // size_t num_region[3] = {4, 2, 1};
 
         // Create memory objects
         cl_mem input_image = clCreateImage2D(*context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &input_format, width, height, 0, input_data.data(), &err_num);
@@ -166,7 +179,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
 
         // Initialise input image
         size_t origin[3] = {0, 0, 0};
-        size_t region[3] = {static_cast<size_t>(width), static_cast<size_t>(height), 1};
+        size_t region[3] = {width, height, 1};
 
         // Set kernel arguments
         err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &input_image);
@@ -187,9 +200,6 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_event_end, NULL);
         profiling_events.push_back(write_event_start);
         profiling_events.push_back(write_event_end);
-
-        // Ensure the output_data buffer is sized correctly for a single-channel grayscale image
-        // output_data.resize(width * height);
 
         // Perform kernel
         err_num = clEnqueueNDRangeKernel(*command_queue, *kernel, 2, nullptr, global_work_size, nullptr, 0, nullptr, &kernel_event);
@@ -255,10 +265,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     avg_opencl_kernel_execution_time = total_kernel_time / NUMBER_OF_ITERATIONS;
     avg_opencl_kernel_read_time = total_read_time / NUMBER_OF_ITERATIONS;
 
-    cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
-    cv::imshow("OpenCL output stuff", opencl_output_image);
-
-    for (size_t i = 0; i < (width * height); ++i) {
+    for (size_t i = 0; i < (width * height * 4); i++) {
         grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
     }
 
@@ -406,8 +413,17 @@ int main(int, char**){
             avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time,
             width, height, logger);
         
-        cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
-        cv::imshow("OpenCL output stuff", opencl_output_image);
+        // cv::Mat opencl_output_image(height, width, CV_8UC4, output_data.data());
+        cv::Mat opencl_output_image(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
+
+        // Convert RGBA to BGR for displaying
+        // cv::Mat bgr_image;
+        // cv::cvtColor(opencl_output_image, bgr_image, cv::COLOR_RGBA2BGR);
+
+        // Display the image
+        cv::imshow("OpenCL output grayscale_value", opencl_output_image);
+        cv::waitKey(0); // Wait for a key press
+
         // SaveImages(image_path, opencl_output_image);
 
         // Perform OpenCL vs CPU comparison
