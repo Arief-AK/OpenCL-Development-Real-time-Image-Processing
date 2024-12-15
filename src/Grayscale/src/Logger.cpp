@@ -52,7 +52,7 @@ void Logger::setLogFile(const std::string &file_name)
 
 void Logger::setTerminalDisplay(bool print_on_terminal)
 {
-    print_on_terminal = m_print_terminal;
+    m_print_terminal = print_on_terminal;
 }
 
 void Logger::log(const std::string &message, LogLevel level)

@@ -4,18 +4,19 @@
 
 #include <Controller.hpp>
 #include <FileHandler.hpp>
-#include <Logger.hpp>
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-int NUMBER_OF_ITERATIONS = 100;
+int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
 bool DISPLAY_IMAGES = false;
-bool DISPLAY_TERMINAL_RESULTS = false;
+bool DISPLAY_TERMINAL_RESULTS = true;
+
+bool LOG_EVENTS = false;
 
 std::string TEST_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
@@ -31,10 +32,7 @@ void InitLogger(Logger& logger){
     }
 }
 
-void InitOpenCL(cl_context* context, cl_command_queue* command_queue, cl_program* program, cl_kernel* kernel){
-    // Initialise OpenCL variables
-    Controller controller;
-
+void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* command_queue, cl_program* program, cl_kernel* kernel){
     // Get OpenCL platforms
     auto platforms = controller.GetPlatforms();
     for (auto && platform : platforms){
@@ -46,6 +44,14 @@ void InitOpenCL(cl_context* context, cl_command_queue* command_queue, cl_program
 
     // Get intended device
     auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
+
+    // Check device image support
+    cl_bool image_support = CL_FALSE;
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
+    if (!image_support) {
+        std::cerr << "Device does not support images." << std::endl;
+        return;
+    }
 
     // Get OpenCL mandatory properties
     cl_int err_num = 0;
@@ -76,7 +82,7 @@ void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_da
 
     // Flatten image into uchar array
     std::vector<unsigned char> _input_data(image.data, image.data + image.total() * 4);
-    std::vector<unsigned char> _output_data(*width * *height);
+    std::vector<unsigned char> _output_data(*width * *height * 4);
 
     // Assign parameters
     *input_data = _input_data;
@@ -93,8 +99,8 @@ void GetImageCPU(cv::Mat* input_image, std::string image_path, Logger& logger){
     *input_image = image;
 }
 
-std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl_command_queue* command_queue,
-    cl_kernel* kernel, double& avg_opencl_execution_time, double& avg_opencl_kernel_execution_time,
+std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
+    double& avg_opencl_execution_time, double& avg_opencl_kernel_write_time, double& avg_opencl_kernel_execution_time, double& avg_opencl_kernel_read_time,
     cl_int& width, cl_int& height, Logger& logger){
     
     std::cout << "Performing OpenCL grayscaling on " << image_path << "..." << std::endl;
@@ -102,83 +108,154 @@ std::vector<uchar> PerformOpenCL(std::string image_path, cl_context* context, cl
     // Initialise image variables
     std::vector<unsigned char> input_data;
     std::vector<unsigned char> output_data;
-    cl_int err_num;
+
+    // Initialise profiling variables
+    std::vector<cl_ulong> profiling_events;
 
     // Get image
     GetImageOpenCL(image_path, &input_data, &output_data, &width, &height, logger);
 
-    // Initialise the global work size for kernel execution
-    size_t global_work_size[] = {static_cast<size_t>(width), static_cast<size_t>(height)};
-
     // Initialise average variables
     double total_execution_time = 0.0;
-    double total_kernel_execution_time = 0.0;
+    double total_write_time = 0.0, total_kernel_time = 0.0, total_read_time = 0.0;
 
     for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
-        // Initialise events for profiling
-        cl_ulong opencl_event_start, opencl_event_end;
-
         // Start profiling execution time
         auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
 
-        // Create buffers
-        auto input_buffer = clCreateBuffer(*context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned char) * input_data.size(), input_data.data(), &err_num);
+        // Perform Grayscaling methods
+        // controller.PerformCLBufferGrayscaling();
+        
+        // controller.PerformCLImageGrayscaling(image_path, context, command_queue, kernel,
+        //     &profiling_events, &input_data, &output_data,
+        //     width, height, logger);
+
+        // Initialise error variable
+        cl_int err_num;
+        
+        // Initialise profiling variables
+        cl_event write_event;
+        cl_event kernel_event;
+        cl_event read_event;
+        cl_ulong write_event_start, write_event_end, kernel_event_start, kernel_event_end, read_event_start, read_event_end;
+
+        // Define cl_image variables and format
+        cl_image_format input_format;
+        input_format.image_channel_order = CL_RGBA;     // RGB
+        input_format.image_channel_data_type = CL_UNORM_INT8;
+
+        cl_image_format output_format;
+        output_format.image_channel_order = CL_RGBA;       // Single channel (grayscale)
+        output_format.image_channel_data_type = CL_UNORM_INT8;
+
+        // Initialise the global work size for kernel execution
+        size_t global_work_size[2] = {static_cast<size_t>(width), static_cast<size_t>(height)};
+        // size_t local_work_size[2] = {16, 16};
+
+        // Create memory objects
+        cl_mem input_image = clCreateImage2D(*context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &input_format, width, height, 0, input_data.data(), &err_num);
         if(err_num != CL_SUCCESS){
-            logger.log("Failed to create input buffer", Logger::LogLevel::ERROR);        
+            logger.log("Failed to create cl_image input_image mem object", Logger::LogLevel::ERROR);
         }
-        auto output_buffer = clCreateBuffer(*context, CL_MEM_WRITE_ONLY, sizeof(unsigned char) * output_data.size(), nullptr, &err_num);
+
+        cl_mem output_image = clCreateImage2D(*context, CL_MEM_WRITE_ONLY, &output_format, width, height, 0, nullptr, &err_num);
         if(err_num != CL_SUCCESS){
-            logger.log("Failed to create output buffer", Logger::LogLevel::ERROR);
+            logger.log("Failed to create cl_image output_image mem object", Logger::LogLevel::ERROR);
         }
 
-        // Assign the kernel arguments
-        err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &input_buffer);
-        err_num |= clSetKernelArg(*kernel, 1, sizeof(cl_mem), &output_buffer);
-        err_num |= clSetKernelArg(*kernel, 2, sizeof(int), &width);
-        err_num |= clSetKernelArg(*kernel, 3, sizeof(int), &height);
+        // Initialise input image
+        size_t origin[3] = {0, 0, 0};
+        size_t region[3] = {static_cast<size_t>(width), static_cast<size_t>(height), 1};
 
-        // Create an event
-        cl_event event;
+        // Set kernel arguments
+        err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &input_image);
+        err_num |= clSetKernelArg(*kernel, 1, sizeof(cl_mem), &output_image);
+        err_num |= clSetKernelArg(*kernel, 2, sizeof(cl_int), &width);
+        err_num |= clSetKernelArg(*kernel, 3, sizeof(cl_int), &height);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed to set kernel arguments", Logger::LogLevel::ERROR);
+        }
 
-        err_num = clEnqueueNDRangeKernel(*command_queue, *kernel, 2, nullptr, global_work_size, nullptr, 0, nullptr, &event);
+        err_num = clEnqueueWriteImage(*command_queue, input_image, CL_FALSE, origin, region, 0, 0, input_data.data(), 0, nullptr, &write_event);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed to write cl_image", Logger::LogLevel::ERROR);
+        }
+
+        clWaitForEvents(1, &write_event);
+        clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_event_start, nullptr);
+        clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_event_end, NULL);
+        profiling_events.push_back(write_event_start);
+        profiling_events.push_back(write_event_end);
+
+        // Ensure the output_data buffer is sized correctly for a single-channel grayscale image
+        output_data.resize(width * height * 4);
+
+        // Perform kernel
+        err_num = clEnqueueNDRangeKernel(*command_queue, *kernel, 2, nullptr, global_work_size, nullptr, 1, &write_event, &kernel_event);
         if(err_num != CL_SUCCESS){
             logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
         }
 
-        // Wait for the event to complete
-        clWaitForEvents(1, &event);
+        clWaitForEvents(1, &kernel_event);
+        clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_event_start, NULL);
+        clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_event_end, NULL);
+        profiling_events.push_back(kernel_event_start);
+        profiling_events.push_back(kernel_event_end);
 
-        // Read the buffer
-        err_num  = clEnqueueReadBuffer(*command_queue, output_buffer, CL_TRUE, 0, sizeof(unsigned char) * output_data.size(), output_data.data(), 0, nullptr, nullptr);
+        // Read back image data
+        err_num = clEnqueueReadImage(*command_queue, output_image, CL_TRUE, origin, region, 0, 0, output_data.data(), 0, nullptr, nullptr);
         if(err_num != CL_SUCCESS){
-            logger.log("Failed to read buffer", Logger::LogLevel::ERROR);
+            logger.log("Failed to read back image data from kernel", Logger::LogLevel::ERROR);
         }
+
+        // clWaitForEvents(1, &read_event);
+        // clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_event_start, NULL);
+        // clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_event_end, NULL);
+        // profiling_events.push_back(read_event_start);
+        // profiling_events.push_back(read_event_end);
 
         // End profiling execution time
         auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
 
-        // Get the RAW kernel timing using OpenCL events
-        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &opencl_event_start, NULL);    
-        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &opencl_event_end, NULL);
-
-        // Convert timings into string
-        std::ostringstream str_start, str_end;
-        str_start << opencl_event_start;
-        str_end << opencl_event_end;
-
-        logger.log("Event start: " + str_start.str(), Logger::LogLevel::INFO);
-        logger.log("Event end: " + str_end.str(), Logger::LogLevel::INFO);
-
         // Calculate total execution time(s)
         total_execution_time += std::chrono::duration<double, std::milli>(opencl_execution_time_end - opencl_execution_time_start).count();
-        total_kernel_execution_time += (opencl_event_end - opencl_event_start) * 1e-6;
+        total_write_time += (profiling_events[1] - profiling_events[0]) * 1e-6;
+        total_kernel_time += (profiling_events[3] - profiling_events[2]) * 1e-6;
+        // total_read_time += (profiling_events[5] - profiling_events[4]) * 1e-6;
+
+        if(LOG_EVENTS){
+            // Convert timings into string
+            std::ostringstream str_write_start, str_write_end,
+                str_kernel_start, str_kernel_end;
+                //str_read_start, str_read_end;
+
+            str_write_start << profiling_events[0];
+            str_write_end << profiling_events[1];
+            logger.log("Write event start: " + str_write_start.str(), Logger::LogLevel::INFO);
+            logger.log("Write event end: " + str_write_end.str(), Logger::LogLevel::INFO);
+
+            str_kernel_start << profiling_events[2];
+            str_kernel_end << profiling_events[3];
+            logger.log("Kernel event start: " + str_kernel_start.str(), Logger::LogLevel::INFO);
+            logger.log("Kernel event end: " + str_kernel_end.str(), Logger::LogLevel::INFO);
+
+            // str_read_start << profiling_events[4];
+            // str_read_end << profiling_events[5];
+            // logger.log("Read event start: " + str_read_start.str(), Logger::LogLevel::INFO);
+            // logger.log("Read event end: " + str_read_end.str(), Logger::LogLevel::INFO);
+        }
     }
 
     logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
 
     // Calculate averages
     avg_opencl_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
-    avg_opencl_kernel_execution_time = total_kernel_execution_time / NUMBER_OF_ITERATIONS;
+    avg_opencl_kernel_write_time = total_write_time / NUMBER_OF_ITERATIONS;
+    avg_opencl_kernel_execution_time = total_kernel_time / NUMBER_OF_ITERATIONS;
+    // avg_opencl_kernel_read_time = total_read_time / NUMBER_OF_ITERATIONS;
+
+    cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
+    cv::imshow("OpenCL output stuff", opencl_output_image);
 
     return output_data;
 }
@@ -283,8 +360,9 @@ int main(int, char**){
     InitLogger(logger);
     logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
     logger.log("Initialised logger", Logger::LogLevel::INFO);
-    
-    // Initialise FileHandler
+
+    // Initialise controllers
+    Controller controller;
     FileHandler file_handler;
 
     // Initialise OpenCL variables
@@ -298,7 +376,7 @@ int main(int, char**){
     std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double>> comparison_results;
 
     // Initialise OpenCL platforms and devices
-    InitOpenCL(&context, &command_queue, &program, &kernel);
+    InitOpenCL(controller, &context, &command_queue, &program, &kernel);
 
     // Load the images
     auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
@@ -308,15 +386,19 @@ int main(int, char**){
         // Initialise image variables
         cl_int width, height;
         
-        // Initialise comparison variables
+        // Initialise comparison image
         cv::Mat cpu_output_image;
+
+        // Initialise timing variables
         double avg_opencl_execution_time = {};
+        double avg_opencl_kernel_write_time = {};
         double avg_opencl_kernel_execution_time = {};
+        double avg_opencl_kernel_read_time = {};
         double avg_cpu_execution_time = {};
 
         // Perform OpenCL and get output data
-        auto output_data = PerformOpenCL(image_path, &context, &command_queue,
-            &kernel, avg_opencl_execution_time, avg_opencl_kernel_execution_time,
+        auto output_data = PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
+            avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time,
             width, height, logger);
         
         cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
