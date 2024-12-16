@@ -45,9 +45,10 @@ To simplify the iteration over `2D` pixel coordinates, the coordinates are conve
 int idx = y * width + x;
 ```
 
-### Kernel: Grayscale conversion within bounds
+### Kernel: Grayscale conversion
 Performing the grayscale conversion by iterating over the `1D` pixel indexes.
 
+#### 1-D Array
 ```c++
 // Ensure within bounds
 if(x < width && y < height){
@@ -60,19 +61,86 @@ if(x < width && y < height){
 }
 ```
 
+To improve the memory management to and from the kernel (device), the `2DImage` structure is used. `2DImage` object is `OpenCL`'s optimised method of handling images in 2D or 3D.
+
+#### OpenCL 2DImage
+```c++
+__constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;
+
+__kernel void grayscale(
+    __read_only image2d_t inputImage,
+    __write_only image2d_t outputImage,
+    const int width,
+    const int height)
+{
+    int x = get_global_id(0); // X-coordinate
+    int y = get_global_id(1); // Y-coordinate
+
+    if (x < get_image_width(inputImage) && y < get_image_height(inputImage)) {
+        int2 coord = (int2)(x, y);
+
+        float4 pixel = read_imagef(inputImage, sampler, (int2) (x,y));
+        
+        // Grayscale calculation
+        float gray = 0.299f * pixel.x + 0.587f * pixel.y + 0.114f * pixel.z;
+
+        // Write the grayscale value to the output image
+        write_imagef(outputImage, (int2)(x, y), (float4)(gray, 0.0f, 0.0f, 1.0f));
+    }
+}
+```
+
 ## Performance Analysis
 This section provides an overview of the testing procedure and the factors considered in the analysis.
 
 ### Test Outline
-1. Load test images from a directory
-2. Perform the grayscale conversion on the `CPU` and `OpenCL` paths
+1. Load the `Artemis` or `Tulips` images from the `images` directory
+2. Perform the grayscale conversion on the `CPU` and `OpenCL` with `5,` `10`, and `100` iterations
 3. Record the following factors:
-    - End-to-end execution time
+    - Average end-to-end execution time
+    - Average Kernel operations timings (reading, executing, and writing)
     - Output comparison results with MAE
 4. Save results into a `.csv` file
+5. Peform on Linux and Windows
 
-### CPU Implementation (Explicitly OpenCV)
-TBA
+![Artemis](../../../src/Grayscale/images/Artemis_small240.jpg)
+![Tulips](../../../src/Grayscale/images/Tulips_small240.jpg)
 
-### OpenCL Implementation
+#### 5 Iterations
+![5-iterations-Windows](../../../src/Grayscale/results/figures/Windows_5_Artemis_performance_metrics.png)
+
+1. Overall `OpenCL` performs faster when measured end-to-end
+2. Overall `OpenCL` kernel operations are faster
+3. End-to-end speedup factor is positive throughout resolutions
+4. Operations speedup factor is positive throughout resolutions
+
+![5-iterations-Linux](../../../src/Grayscale/results/figures/Linux_5_Artemis_performance_metrics.png)
+
+1. Overall `CPU` end-to-end and operational times are faster
+2. There is no speedup factor for both end-to-end or operational execution
+
+#### 10 Iterations
+![10-iterations-Windows](../../../src/Grayscale/results/figures/Windows_10_Artemis_performance_metrics.png)
+
+1. Overall `OpenCL` performs better for both end-to-end and operational timings
+2. `OpenCL` speedup factor is `positive` for both end-to-end and operational
+
+![10-iterations-Linux](../../../src/Grayscale/results/figures/Linux_10_Artemis_performance_metrics.png)
+
+1. Overall `CPU` performs better for both end-to-end and operational
+2. `OpenCL` has `negative` speedup factor for both end-to-end and operational
+
+#### 100 Iterations
+![100-iterations-Windows](../../../src/Grayscale/results/figures/Windows_100_Artemis_performance_metrics.png)
+
+1. `OpenCL` performs faster end-to-end execution for smaller resolutions
+2. `CPU` overtakes towards higher resolutions
+3. Speedup factor of `OpenCL` gradually decreases as resolution increases
+
+![100-iterations-Linux](../../../src/Grayscale/results/figures/Linux_100_Artemis_performance_metrics.png)
+
+1. Overall `CPU` performs better for all resolutions
+2. No speedup factor produced
+
+### Summary
 TBA
