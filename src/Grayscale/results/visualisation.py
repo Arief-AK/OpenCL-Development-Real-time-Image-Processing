@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 
 # 0 - Linux
 # 1 - Windows
-USING_OS = 1
-SHOW_FIGURES = True
+USING_OS = 0
+SHOW_FIGURES = False
 SHOW_TERMINAL_OUTPUT = False
 SAVE_DATAFRAME = True
 
@@ -40,12 +40,12 @@ def CPUvsOpenCLEndtoEnd(ax, data: pd.DataFrame):
 
 # OpenCL Kernel Operations vs OpenCL Total Time
 def KernelvsOpenCLTotal(ax, data: pd.DataFrame):
-    ax.plot(data['Pixel Count'], data['avg_OpenCL_Time_ms'], label='Total OpenCL Time (ms)', marker='o')
-    ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_ms'], label='OpenCL Kernel Time (ms)', marker='o')
+    ax.plot(data['Pixel Count'], data['avg_CPU_Time_ms'], label='CPU Operation Time (ms)', marker='o')
+    ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_ms'], label='OpenCL Kernel Execution Time (ms)', marker='o')
     ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_write_ms'], label='OpenCL Kernel Write Time (ms)', marker='o')
     ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_read_ms'], label='OpenCL Kernel Read Time (ms)', marker='o')
     ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_operation_ms'], label='OpenCL Kernel operation Time (ms)', marker='o')
-    ax.set_title('Average OpenCL Total vs Average Kernel Operation Time')
+    ax.set_title('Average CPU vs Average Kernel Operation Time')
     ax.set_xlabel('Pixel Count (Resolution)')
     ax.set_ylabel('Time (ms)')
     ax.legend()
