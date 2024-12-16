@@ -27,7 +27,6 @@ public:
     void DisplayPlatformInformation(cl_platform_id platform);
     void Cleanup(cl_context context = 0, cl_command_queue commandQueue = 0, cl_program program = 0, cl_kernel kernel = 0, cl_sampler sampler = 0, cl_mem* mem_objects = 0, int num_mem_objects = 0);
 
-    void PerformCLBufferGrayscaling();
     void PerformCLImageGrayscaling(std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
         std::vector<cl_ulong>* profiling_events, std::vector<unsigned char>* input_data, std::vector<float>* output_data,
         cl_int& width, cl_int& height, Logger& logger);

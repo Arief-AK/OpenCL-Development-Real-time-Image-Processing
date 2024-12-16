@@ -9,9 +9,6 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-enum G_METHOD {BUFFER, IMAGE_OBJECTS};
-enum G_METHOD GRAYSCALE_METHOD = IMAGE_OBJECTS;
-
 int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
@@ -127,23 +124,9 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         // Start profiling execution time
         auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
 
-        // Perform Grayscaling methods
-        switch (GRAYSCALE_METHOD)
-        {
-        case 0:
-            controller.PerformCLBufferGrayscaling();   
-            break;
-        
-        case 1:
-            controller.PerformCLImageGrayscaling(image_path, context, command_queue, kernel,
-            &profiling_events, &input_data, &output_data,
-            width, height, logger);
-            break;
-        
-        default:
-            logger.log("Unrecognised Grayscale Method", Logger::LogLevel::ERROR);
-            break;
-        }
+        controller.PerformCLImageGrayscaling(image_path, context, command_queue, kernel,
+        &profiling_events, &input_data, &output_data,
+        width, height, logger);
 
         // End profiling execution time
         auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
