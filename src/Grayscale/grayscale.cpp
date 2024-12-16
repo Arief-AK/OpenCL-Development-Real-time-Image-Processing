@@ -6,7 +6,7 @@
 #include <FileHandler.hpp>
 
 // CONSTANTS
-#define PLATFORM_INDEX 1
+#define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
 int NUMBER_OF_ITERATIONS = 100;
