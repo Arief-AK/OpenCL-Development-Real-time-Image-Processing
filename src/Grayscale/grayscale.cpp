@@ -9,11 +9,14 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
+enum G_METHOD {BUFFER, IMAGE_OBJECTS};
+enum G_METHOD GRAYSCALE_METHOD = IMAGE_OBJECTS;
+
 int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = true;
+bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -125,11 +128,22 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
 
         // Perform Grayscaling methods
-        controller.PerformCLBufferGrayscaling();
+        switch (GRAYSCALE_METHOD)
+        {
+        case 0:
+            controller.PerformCLBufferGrayscaling();   
+            break;
         
-        controller.PerformCLImageGrayscaling(image_path, context, command_queue, kernel,
+        case 1:
+            controller.PerformCLImageGrayscaling(image_path, context, command_queue, kernel,
             &profiling_events, &input_data, &output_data,
             width, height, logger);
+            break;
+        
+        default:
+            logger.log("Unrecognised Grayscale Method", Logger::LogLevel::ERROR);
+            break;
+        }
 
         // End profiling execution time
         auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
@@ -218,23 +232,31 @@ void PrintEndToEndExecutionTime(std::string method, double total_execution_time_
     logger.log("-------------------- END OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
 }
 
-void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, Logger& logger){
+void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, Logger& logger){
     logger.log("-------------------- START OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
 
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(10) << "Kernel execution time: " << opencl_kernel_execution_time << " ms";
+    oss << std::fixed << std::setprecision(5) << "Kernel write time: " << opencl_kernel_write_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel execution time: " << opencl_kernel_execution_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel read time: " << opencl_kernel_read_time << " ms";
     logger.log(oss.str(), Logger::LogLevel::INFO);
 
     logger.log("-------------------- END OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
 }
 
-void PrintSummary(double& opencl_kernel_execution_time, double& opencl_execution_time,
+void PrintSummary(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_execution_time,
     double& cpu_execution_time, Logger& logger){
     if(DISPLAY_TERMINAL_RESULTS)
         std::cout << "\n **************************************** START OF OpenCL SUMMARY **************************************** " << std::endl;
     
     PrintEndToEndExecutionTime("OpenCL", opencl_execution_time, logger);
-    PrintRawKernelExecutionTime(opencl_kernel_execution_time, logger);
+    PrintRawKernelExecutionTime(opencl_kernel_execution_time, opencl_kernel_write_time, opencl_kernel_read_time, logger);
     
     if(DISPLAY_TERMINAL_RESULTS){
         std::cout << " **************************************** END OF OpenCL SUMMARY **************************************** " << std::endl;
@@ -344,7 +366,7 @@ int main(int, char**){
                                             avg_opencl_kernel_execution_time, MAE);
 
             // Print summary
-            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_execution_time, avg_cpu_execution_time, logger);
+            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_execution_time, avg_cpu_execution_time, logger);
 
             // Write results to CSV
             WriteResultsToCSV(OUTPUT_FILE, comparison_results);
