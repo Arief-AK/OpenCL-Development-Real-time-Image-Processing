@@ -82,16 +82,7 @@ void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_da
 
     // Flatten image into uchar array
     std::vector<unsigned char> _input_data(image.data, image.data + image.total() * 4);
-
     cv::Mat rgba_image(*height, *width, CV_8UC4, const_cast<unsigned char*>(_input_data.data()));
-
-    // Convert RGBA to BGR for displaying
-    cv::Mat bgr_image;
-    cv::cvtColor(rgba_image, bgr_image, cv::COLOR_RGBA2BGR);
-
-    // Display the image
-    cv::imshow("Image from Input Data", bgr_image);
-    cv::waitKey(0); // Wait for a key press
 
     // Assign parameters
     *input_data = _input_data;
@@ -162,10 +153,6 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         // Initialise the global work size for kernel execution
         size_t global_work_size[2] = {width, height};
 
-        // unsigned char numbers[8] = {22, 2, 3, 4, 5, 6, 7, 8};
-        // size_t num_origin[3] = {0, 0, 0};
-        // size_t num_region[3] = {4, 2, 1};
-
         // Create memory objects
         cl_mem input_image = clCreateImage2D(*context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &input_format, width, height, 0, input_data.data(), &err_num);
         if(err_num != CL_SUCCESS){
@@ -181,6 +168,11 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         size_t origin[3] = {0, 0, 0};
         size_t region[3] = {width, height, 1};
 
+        err_num = clEnqueueWriteImage(*command_queue, input_image, CL_TRUE, origin, region, 0, 0, input_data.data(), 0, nullptr, &write_event);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed to write cl_image", Logger::LogLevel::ERROR);
+        }
+
         // Set kernel arguments
         err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &input_image);
         err_num |= clSetKernelArg(*kernel, 1, sizeof(cl_mem), &output_image);
@@ -188,11 +180,6 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         err_num |= clSetKernelArg(*kernel, 3, sizeof(int), &height);
         if(err_num != CL_SUCCESS){
             logger.log("Failed to set kernel arguments", Logger::LogLevel::ERROR);
-        }
-
-        err_num = clEnqueueWriteImage(*command_queue, input_image, CL_TRUE, origin, region, 0, 0, input_data.data(), 0, nullptr, &write_event);
-        if(err_num != CL_SUCCESS){
-            logger.log("Failed to write cl_image", Logger::LogLevel::ERROR);
         }
 
         clWaitForEvents(1, &write_event);
@@ -413,18 +400,8 @@ int main(int, char**){
             avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time,
             width, height, logger);
         
-        // cv::Mat opencl_output_image(height, width, CV_8UC4, output_data.data());
-        cv::Mat opencl_output_image(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
-
-        // Convert RGBA to BGR for displaying
-        // cv::Mat bgr_image;
-        // cv::cvtColor(opencl_output_image, bgr_image, cv::COLOR_RGBA2BGR);
-
-        // Display the image
-        cv::imshow("OpenCL output grayscale_value", opencl_output_image);
-        cv::waitKey(0); // Wait for a key press
-
-        // SaveImages(image_path, opencl_output_image);
+        cv::Mat opencl_output_image(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
+        SaveImages(image_path, opencl_output_image);
 
         // Perform OpenCL vs CPU comparison
         if(PERFORM_COMP){
