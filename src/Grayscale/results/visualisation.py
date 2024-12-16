@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # 0 - Linux
 # 1 - Windows
 USING_OS = 1
-SHOW_FIGURES = False
+SHOW_FIGURES = True
 SHOW_TERMINAL_OUTPUT = False
 SAVE_DATAFRAME = True
 
@@ -34,28 +34,42 @@ def CPUvsOpenCLEndtoEnd(ax, data: pd.DataFrame):
     ax.plot(data['Pixel Count'], data['avg_OpenCL_Time_ms'], label='avg_OpenCL Time (ms)', marker='o')
     ax.set_xlabel('Pixel Count (Resolution)')
     ax.set_ylabel('Average Execution Time (ms)')
-    ax.set_title('CPU vs OpenCL Execution Time')
+    ax.set_title('CPU vs OpenCL Execution Time (End-to-End)')
     ax.legend()
     ax.grid(True)
 
-# OpenCL kernel vs OpenCL Total Time
+# OpenCL Kernel Operations vs OpenCL Total Time
 def KernelvsOpenCLTotal(ax, data: pd.DataFrame):
     ax.plot(data['Pixel Count'], data['avg_OpenCL_Time_ms'], label='Total OpenCL Time (ms)', marker='o')
     ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_ms'], label='OpenCL Kernel Time (ms)', marker='o')
-    ax.set_title('Average OpenCL Total vs Average Kernel Time')
+    ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_write_ms'], label='OpenCL Kernel Write Time (ms)', marker='o')
+    ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_read_ms'], label='OpenCL Kernel Read Time (ms)', marker='o')
+    ax.plot(data['Pixel Count'], data['avg_OpenCL_kernel_operation_ms'], label='OpenCL Kernel operation Time (ms)', marker='o')
+    ax.set_title('Average OpenCL Total vs Average Kernel Operation Time')
     ax.set_xlabel('Pixel Count (Resolution)')
     ax.set_ylabel('Time (ms)')
     ax.legend()
     ax.grid(True)
 
-# OpenCL vs CPU speedup factor
-def SpeedFactor(ax, data: pd.DataFrame):
+# OpenCL vs CPU speedup factor (end-to-end)
+def SpeedFactorEndtoEnd(ax, data: pd.DataFrame):
     # Calculate the speedup factor
     data['Speedup'] = data['avg_CPU_Time_ms'] / data['avg_OpenCL_Time_ms']
 
     ax.plot(data['Pixel Count'], data['Speedup'], label='Speedup', marker='o')
     ax.axhline(1, color='red', linestyle='--', label='No Speedup')
-    ax.set_title('Speedup vs Resolution')
+    ax.set_title('Speedup vs Resolution (End-to-End)')
+    ax.set_xlabel('Pixel Count (Resolution)')
+    ax.set_ylabel('Speedup Factor')
+    ax.legend()
+    ax.grid(True)
+
+def SpeedFactorOperation(ax, data: pd.DataFrame):
+    data['operation_speedup'] = data['avg_CPU_Time_ms'] / data['avg_OpenCL_kernel_operation_ms']
+
+    ax.plot(data['Pixel Count'], data['operation_speedup'], label='Operation speedup', marker='o')
+    ax.axhline(1, color='red', linestyle='--', label='No Speedup')
+    ax.set_title('Speedup vs Resolution (Operation)')
     ax.set_xlabel('Pixel Count (Resolution)')
     ax.set_ylabel('Speedup Factor')
     ax.legend()
@@ -110,15 +124,16 @@ if __name__ == "__main__":
             num_iterations = group_data['Num_Iterations'].iloc[0]
 
             # Create subplots for this image group
-            fig, ax = plt.subplots(2, 2, figsize=(12, 10))
+            fig, ax = plt.subplots(3, 2, figsize=(12, 10))
             
             CPUvsOpenCLEndtoEnd(ax[0, 0], group_data)
             KernelvsOpenCLTotal(ax[0, 1], group_data)
-            SpeedFactor(ax[1, 0], group_data)
-            MAE(ax[1, 1], group_data)
+            SpeedFactorEndtoEnd(ax[1, 0], group_data)
+            SpeedFactorOperation(ax[1, 1], group_data)
+            MAE(ax[2, 0], group_data)
 
             # Set the overall title for the group
-            fig.suptitle(f'Performance Metrics for {image_name} on {os_name}', fontsize=16)
+            fig.suptitle(f'Performance Metrics for {image_name} on {os_name} with {num_iterations} iterations', fontsize=16)
 
             # Set the figure window title
             plt.gcf().canvas.manager.set_window_title(f"Performance Metrics - {image_name}")

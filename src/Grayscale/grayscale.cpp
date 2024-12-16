@@ -99,7 +99,7 @@ void GetImageCPU(cv::Mat* input_image, std::string image_path, Logger& logger){
 
 std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
     double& avg_opencl_execution_time, double& avg_opencl_kernel_write_time, double& avg_opencl_kernel_execution_time, double& avg_opencl_kernel_read_time,
-    cl_int& width, cl_int& height, Logger& logger){
+    double& avg_opencl_kernel_operation, cl_int& width, cl_int& height, Logger& logger){
     
     std::ostringstream oss;
     oss << "Performing OpenCL grayscaling on " << image_path << "...";
@@ -120,7 +120,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
 
     // Initialise average variables
     double total_execution_time = 0.0;
-    double total_write_time = 0.0, total_kernel_time = 0.0, total_read_time = 0.0;
+    double total_write_time = 0.0, total_kernel_time = 0.0, total_read_time = 0.0, total_operation_time = 0.0;
 
     for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
         // Start profiling execution time
@@ -138,6 +138,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         total_write_time += (profiling_events[1] - profiling_events[0]) * 1e-6;
         total_kernel_time += (profiling_events[3] - profiling_events[2]) * 1e-6;
         total_read_time += (profiling_events[5] - profiling_events[4]) * 1e-6;
+        total_operation_time  = total_write_time + total_kernel_time + total_read_time;
 
         if(LOG_EVENTS){
             // Convert timings into string
@@ -169,6 +170,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     avg_opencl_kernel_write_time = total_write_time / NUMBER_OF_ITERATIONS;
     avg_opencl_kernel_execution_time = total_kernel_time / NUMBER_OF_ITERATIONS;
     avg_opencl_kernel_read_time = total_read_time / NUMBER_OF_ITERATIONS;
+    avg_opencl_kernel_operation = total_operation_time / NUMBER_OF_ITERATIONS;
 
     for (size_t i = 0; i < (width * height * 4); i++) {
         grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
@@ -220,7 +222,7 @@ void PrintEndToEndExecutionTime(std::string method, double total_execution_time_
     logger.log("-------------------- END OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
 }
 
-void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, Logger& logger){
+void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_kernel_operation_time, Logger& logger){
     logger.log("-------------------- START OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
 
     std::ostringstream oss;
@@ -234,17 +236,21 @@ void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, double& o
 
     oss << std::fixed << std::setprecision(5) << "Kernel read time: " << opencl_kernel_read_time << " ms";
     logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel complete operation time: " << opencl_kernel_operation_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
 
     logger.log("-------------------- END OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
 }
 
-void PrintSummary(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_execution_time,
+void PrintSummary(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_execution_time, double& opencl_kernel_operation_time,
     double& cpu_execution_time, Logger& logger){
     if(DISPLAY_TERMINAL_RESULTS)
         std::cout << "\n **************************************** START OF OpenCL SUMMARY **************************************** " << std::endl;
     
     PrintEndToEndExecutionTime("OpenCL", opencl_execution_time, logger);
-    PrintRawKernelExecutionTime(opencl_kernel_execution_time, opencl_kernel_write_time, opencl_kernel_read_time, logger);
+    PrintRawKernelExecutionTime(opencl_kernel_execution_time, opencl_kernel_write_time, opencl_kernel_read_time, opencl_kernel_operation_time, logger);
     
     if(DISPLAY_TERMINAL_RESULTS){
         std::cout << " **************************************** END OF OpenCL SUMMARY **************************************** " << std::endl;
@@ -271,11 +277,12 @@ void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
     }
 }
 
-void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double>>& results){
+void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double, double>>& results){
     std::ofstream file(filename);
-    file << "Timestamp, Image, Resolution, Num_Iterations, avg_CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, avg_OpenCL_kernel_write_ms, avg_OpenCL_kernel_read_ms, Error_MAE\n";
-    for (const auto& [timestamp, image, resolution, num_iterations, avg_cpu_time, avg_opencl_time, avg_opencl_kernel_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, mae] : results) {
-        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << avg_cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", " << avg_opencl_kernel_write_time << ", " << avg_opencl_kernel_read_time << ", " << mae << "\n";
+    file << "Timestamp, Image, Resolution, Num_Iterations, avg_CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, avg_OpenCL_kernel_write_ms, avg_OpenCL_kernel_read_ms, avg_OpenCL_kernel_operation_ms, Error_MAE\n";
+    for (const auto& [timestamp, image, resolution, num_iterations, avg_cpu_time, avg_opencl_time, avg_opencl_kernel_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time, mae] : results) {
+        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << avg_cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", "
+        << avg_opencl_kernel_write_time << ", " << avg_opencl_kernel_read_time << ", " << avg_opencl_kernel_operation_time << ", " << mae << "\n";
     }
     file.close();
 }
@@ -301,7 +308,7 @@ int main(int, char**){
     cl_int err_num = 0;
 
     // Initialise results vector
-    std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double>> comparison_results;
+    std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double, double>> comparison_results;
 
     // Initialise OpenCL platforms and devices
     InitOpenCL(controller, &context, &command_queue, &program, &kernel);
@@ -322,11 +329,12 @@ int main(int, char**){
         double avg_opencl_kernel_write_time = {};
         double avg_opencl_kernel_execution_time = {};
         double avg_opencl_kernel_read_time = {};
+        double avg_opencl_kernel_operation_time = {};
         double avg_cpu_execution_time = {};
 
         // Perform OpenCL and get output data
         auto output_data = PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
-            avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time,
+            avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
             width, height, logger);
         
         cv::Mat opencl_output_image(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
@@ -353,10 +361,11 @@ int main(int, char**){
                                             avg_cpu_execution_time, avg_opencl_execution_time,
                                             avg_opencl_kernel_execution_time, 
                                             avg_opencl_kernel_write_time, avg_opencl_kernel_read_time,
+                                            avg_opencl_kernel_operation_time,
                                             MAE);
 
             // Print summary
-            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_execution_time,
+            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_execution_time, avg_opencl_kernel_operation_time,
                          avg_cpu_execution_time, logger);
 
             // Write results to CSV
