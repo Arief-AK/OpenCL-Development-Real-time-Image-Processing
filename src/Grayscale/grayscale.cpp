@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iomanip>
+#include <opencv2/core/ocl.hpp>
 #include <opencv2/opencv.hpp>
 
 #include <Controller.hpp>
@@ -85,16 +86,6 @@ void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_da
 
     // Assign parameters
     *input_data = _input_data;
-}
-
-void GetImageCPU(cv::Mat* input_image, std::string image_path, Logger& logger){
-    // Load the input image using OpenCV
-    cv::Mat image = cv::imread(image_path, cv::IMREAD_COLOR);
-    if(image.empty()){
-        logger.log("Failed to load image", Logger::LogLevel::ERROR);
-    }
-
-    *input_image = image;
 }
 
 std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
@@ -186,19 +177,32 @@ cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logge
     logger.log(oss.str(), Logger::LogLevel::INFO);
     
     // Initialise variables
-    cv::Mat input_image;
-    cv::Mat output_image;
+    cv::Mat input_image = cv::imread(image_path);
+    if(input_image.empty() || input_image.channels() != 3){
+        logger.log("Failed to read image", Logger::LogLevel::ERROR);
+    }
 
-    // Get image using OpenCV
-    GetImageCPU(&input_image, image_path, logger);
+    // Initialise output image
+    auto output_image = cv::Mat(input_image.rows, input_image.cols, CV_8UC1);
 
     // Initialise average variables
     double total_execution_time = 0.0;
 
     for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
-        // Convert the image to grayscale and perform execution time profiling
+        // Loop through each pixel
         auto start = std::chrono::high_resolution_clock::now();
-        cv::cvtColor(input_image, output_image, cv::COLOR_RGBA2GRAY);
+        for(int row = 0; row < input_image.rows; row++){
+            for(int col = 0; col < input_image.cols; col++){
+                // Get the BGR values
+                cv::Vec3b bgr = input_image.at<cv::Vec3b>(row, col);
+
+                // Apply grayscale
+                uchar gray_value = static_cast<uchar>(0.299 * bgr[2] + 0.587 * bgr[1] + 0.114 * bgr[0]);
+
+                // Assign value
+                output_image.at<uchar>(row, col) = gray_value;
+            }
+        }
         auto end = std::chrono::high_resolution_clock::now();
 
         total_execution_time += std::chrono::duration<double, std::milli>(end - start).count();
@@ -289,6 +293,7 @@ void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::
 
 int main(int, char**){
     std::cout << "Hello, from Grayscale application!\n";
+    cv::ocl::setUseOpenCL(false);
 
     // Initialise (singleton) Logger
     Logger& logger = Logger::getInstance();
