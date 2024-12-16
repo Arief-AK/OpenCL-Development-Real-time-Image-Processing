@@ -9,7 +9,7 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-int NUMBER_OF_ITERATIONS = 1;
+int NUMBER_OF_ITERATIONS = 100;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
@@ -101,7 +101,9 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     double& avg_opencl_execution_time, double& avg_opencl_kernel_write_time, double& avg_opencl_kernel_execution_time, double& avg_opencl_kernel_read_time,
     cl_int& width, cl_int& height, Logger& logger){
     
-    std::cout << "Performing OpenCL grayscaling on " << image_path << "..." << std::endl;
+    std::ostringstream oss;
+    oss << "Performing OpenCL grayscaling on " << image_path << "...";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
 
     // Initialise image variables
     std::vector<unsigned char> input_data;
@@ -176,7 +178,10 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
 }
 
 cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logger& logger){
-    std::cout << "Performing CPU grayscaling on " << image_path << "..." << std::endl;
+    
+    std::ostringstream oss;
+    oss << "Performing CPU grayscaling on " << image_path << "...";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
     
     // Initialise variables
     cv::Mat input_image;
@@ -266,11 +271,11 @@ void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
     }
 }
 
-void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double>>& results){
+void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double>>& results){
     std::ofstream file(filename);
-    file << "Timestamp, Image, Resolution, Num_Iterations, avg_CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, Error_MAE\n";
-    for (const auto& [timestamp, image, resolution, num_iterations, avg_cpu_time, avg_opencl_time, avg_opencl_kernel_time, mae] : results) {
-        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << avg_cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", " << mae << "\n";
+    file << "Timestamp, Image, Resolution, Num_Iterations, avg_CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, avg_OpenCL_kernel_write_ms, avg_OpenCL_kernel_read_ms, Error_MAE\n";
+    for (const auto& [timestamp, image, resolution, num_iterations, avg_cpu_time, avg_opencl_time, avg_opencl_kernel_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, mae] : results) {
+        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << avg_cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", " << avg_opencl_kernel_write_time << ", " << avg_opencl_kernel_read_time << ", " << mae << "\n";
     }
     file.close();
 }
@@ -296,7 +301,7 @@ int main(int, char**){
     cl_int err_num = 0;
 
     // Initialise results vector
-    std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double>> comparison_results;
+    std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double>> comparison_results;
 
     // Initialise OpenCL platforms and devices
     InitOpenCL(controller, &context, &command_queue, &program, &kernel);
@@ -346,10 +351,13 @@ int main(int, char**){
             // Append to the comparison result vector
             comparison_results.emplace_back(timestamp, image_path, resolution, NUMBER_OF_ITERATIONS,
                                             avg_cpu_execution_time, avg_opencl_execution_time,
-                                            avg_opencl_kernel_execution_time, MAE);
+                                            avg_opencl_kernel_execution_time, 
+                                            avg_opencl_kernel_write_time, avg_opencl_kernel_read_time,
+                                            MAE);
 
             // Print summary
-            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_execution_time, avg_cpu_execution_time, logger);
+            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_execution_time,
+                         avg_cpu_execution_time, logger);
 
             // Write results to CSV
             WriteResultsToCSV(OUTPUT_FILE, comparison_results);
