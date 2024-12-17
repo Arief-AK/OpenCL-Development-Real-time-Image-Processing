@@ -282,5 +282,81 @@ void Controller::PerformCLImageEdgeDetection(std::string image_path, cl_context 
     std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<float> *output_data,
     cl_int &width, cl_int &height, Logger &logger)
 {
-    // TBA
+    // Initialise error variable
+    cl_int err_num;
+    
+    // Initialise profiling variables
+    cl_event write_event;
+    cl_event kernel_event;
+    cl_event read_event;
+    cl_ulong write_event_start, write_event_end, kernel_event_start, kernel_event_end, read_event_start, read_event_end;
+
+    // Define cl_image variables and format
+    cl_image_format image_format;
+    image_format.image_channel_order = CL_R;                // Single channel (grayscale)
+    image_format.image_channel_data_type = CL_UNORM_INT8;
+
+    // Initialise the global work size for kernel execution
+    size_t global_work_size[2] = {width, height};
+
+    // Create memory objects
+    cl_mem input_image = clCreateImage2D(*context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &image_format,
+        width, height, 0, input_data->data(), &err_num);
+    if(err_num != CL_SUCCESS){
+        logger.log("Failed to create cl_image input_image mem object", Logger::LogLevel::ERROR);
+    }
+
+    cl_mem output_image = clCreateImage2D(*context, CL_MEM_WRITE_ONLY, &image_format,
+        width, height, 0, nullptr, &err_num);
+    if(err_num != CL_SUCCESS){
+        logger.log("Failed to create cl_image output_image mem object", Logger::LogLevel::ERROR);
+    }
+
+    // Initialise input image
+    size_t origin[3] = {0, 0, 0};
+    size_t region[3] = {width, height, 1};
+
+    err_num = clEnqueueWriteImage(*command_queue, input_image, CL_FALSE, origin, region, 0, 0, input_data->data(), 0, nullptr, &write_event);
+    if(err_num != CL_SUCCESS){
+        logger.log("Failed to write cl_image", Logger::LogLevel::ERROR);
+    }
+
+    clWaitForEvents(1, &write_event);
+    clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_event_start, nullptr);
+    clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_event_end, NULL);
+    profiling_events->push_back(write_event_start);
+    profiling_events->push_back(write_event_end);
+
+    // Set kernel arguments
+    err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &input_image);
+    err_num |= clSetKernelArg(*kernel, 1, sizeof(cl_mem), &output_image);
+    err_num |= clSetKernelArg(*kernel, 2, sizeof(int), &width);
+    err_num |= clSetKernelArg(*kernel, 3, sizeof(int), &height);
+    if(err_num != CL_SUCCESS){
+        logger.log("Failed to set kernel arguments", Logger::LogLevel::ERROR);
+    }
+
+    // Perform kernel
+    err_num = clEnqueueNDRangeKernel(*command_queue, *kernel, 2, nullptr, global_work_size, nullptr, 1, &write_event, &kernel_event);
+    if(err_num != CL_SUCCESS){
+        logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
+    }
+
+    clWaitForEvents(1, &kernel_event);
+    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_event_start, NULL);
+    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_event_end, NULL);
+    profiling_events->push_back(kernel_event_start);
+    profiling_events->push_back(kernel_event_end);
+
+    // Read back image data
+    err_num = clEnqueueReadImage(*command_queue, output_image, CL_FALSE, origin, region, 0, 0, output_data->data(), 1, &kernel_event, &read_event);
+    if(err_num != CL_SUCCESS){
+        logger.log("Failed to read back image data from kernel", Logger::LogLevel::ERROR);
+    }
+
+    clWaitForEvents(1, &read_event);
+    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_event_start, NULL);
+    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_event_end, NULL);
+    profiling_events->push_back(read_event_start);
+    profiling_events->push_back(read_event_end);
 }
