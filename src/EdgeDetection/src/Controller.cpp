@@ -277,3 +277,10 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
     profiling_events->push_back(read_event_start);
     profiling_events->push_back(read_event_end);
 }
+
+void Controller::PerformCLImageEdgeDetection(std::string image_path, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
+    std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<float> *output_data,
+    cl_int &width, cl_int &height, Logger &logger)
+{
+    // TBA
+}

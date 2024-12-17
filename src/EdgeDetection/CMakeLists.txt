@@ -1,3 +1,6 @@
+# Print the build type
+message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
+
 # Function to correlate sources to header files
 function(collect_sources_from_headers source_var header_dir source_dir)
     set(sources "")
@@ -43,28 +46,24 @@ set(HEADERS
 collect_sources_from_headers(SOURCES include src ${HEADERS})
 
 # Add executable to the CMake framework
-add_executable(EdgeDetection ${SOURCES} EdgeDetection.cpp)
+add_executable(EdgeDetection_OpenCL ${SOURCES} EdgeDetection.cpp)
 
 # Include the directory with kernel file
-target_include_directories(EdgeDetection PRIVATE include)
-#target_include_directories(EdgeDetection PRIVATE kernel)
+target_include_directories(EdgeDetection_OpenCL PRIVATE include)
+target_include_directories(EdgeDetection_OpenCL PRIVATE kernel)
 
 # Link the OpenCL and OpenCV library to the executable
-target_link_libraries(EdgeDetection ${OS_LIB} ${OpenCV_LIBS})
+target_link_libraries(EdgeDetection_OpenCL ${OS_LIB} ${OpenCV_LIBS})
 
 # Define the source images directory and the target images directory
-set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/Grayscale/images)
+set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/EdgeDetection/images)
 message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})
 
 # Find all images in the source images directory
 file(GLOB IMAGE_FILES "${IMAGES_SOURCE_DIR}/*.*") # Match all files in the directory
 
 # Define the target image directory
-if(WIN32)
-    set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/Debug/images)
-elseif(UNIX AND NOT APPLE)
-    set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/images)
-endif()
+set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/images)
 
 # Ensure the target directory is cleaned up
 if(EXISTS ${IMAGES_BINARY_DIR})
@@ -79,13 +78,8 @@ foreach(IMAGE_FILE ${IMAGE_FILES})
     get_filename_component(IMAGE_NAME ${IMAGE_FILE} NAME)
     configure_file(${IMAGE_FILE} ${IMAGES_BINARY_DIR}/${IMAGE_NAME} COPYONLY)
 endforeach()
-message(STATUS "Image sources have re-located to: " ${IMAGES_BINARY_DIR})
+message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
 
 # Move the kernel file(s) into the executable directory
-# if(WIN32)
-#     message(STATUS "The executable is located in: " ${CMAKE_CURRENT_BINARY_DIR} "/Debug")
-#     configure_file(kernel/grayscale.cl ${CMAKE_CURRENT_BINARY_DIR}/Debug/grayscale.cl COPYONLY)
-# elseif(UNIX AND NOT APPLE)
-#     message(STATUS "The executable is located in: " ${CMAKE_CURRENT_BINARY_DIR})
-#     configure_file(kernel/grayscale.cl ${CMAKE_CURRENT_BINARY_DIR}/grayscale.cl COPYONLY)
-# endif()
+configure_file(kernel/sobel_edge.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/sobel_edge.cl COPYONLY)
+message(STATUS "The kernel is located in: ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")

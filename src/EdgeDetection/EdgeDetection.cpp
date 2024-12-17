@@ -25,7 +25,7 @@ std::string OUTPUT_FILE = "results.csv";
 void InitLogger(Logger& logger){
     // Set the log file
     try{
-       logger.setLogFile("Grayscale.log");
+       logger.setLogFile("EdgeDetection.log");
     }
     catch(const std::exception& e)
     {
@@ -58,12 +58,222 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     cl_int err_num = 0;
     *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
     *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
-    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], "grayscale.cl");
-    *kernel = controller.CreateKernel(*program, "grayscale");
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], "sobel_edge.cl");
+    *kernel = controller.CreateKernel(*program, "sobel_edge_detection");
+}
+
+void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_data,
+    cl_int* width, cl_int* height, Logger& logger){
+    // Load the input image using OpenCV
+    cv::Mat image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
+    if(image.empty()){
+        logger.log("Failed to load image", Logger::LogLevel::ERROR);
+    }
+
+    // Display image (if necessary)
+    if(DISPLAY_IMAGES){
+        cv::imshow("Reference Image Window", image);
+    }
+
+    // Get image dimensions
+    *width = image.cols;
+    *height = image.rows;
+
+    // Flatten image into uchar array
+    std::vector<unsigned char> _input_data(image.data, image.data + image.total());
+
+    // Assign parameters
+    *input_data = _input_data;
+}
+
+std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
+    double& avg_opencl_execution_time, double& avg_opencl_kernel_write_time, double& avg_opencl_kernel_execution_time, double& avg_opencl_kernel_read_time,
+    double& avg_opencl_kernel_operation, cl_int& width, cl_int& height, Logger& logger){
+    
+    std::ostringstream oss;
+    oss << "Performing OpenCL Sobel edge-detection on " << image_path << "...";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+
+    // Initialise image variables
+    std::vector<unsigned char> input_data;
+
+    // Initialise profiling variables
+    std::vector<cl_ulong> profiling_events;
+
+    // Get image
+    GetImageOpenCL(image_path, &input_data, &width, &height, logger);
+
+    // Initialise output variables
+    std::vector<float> output_data(width * height);
+    std::vector<unsigned char> grayscale_output(width * height * 4);
+
+    // Initialise average variables
+    double total_execution_time = 0.0;
+    double total_write_time = 0.0, total_kernel_time = 0.0, total_read_time = 0.0, total_operation_time = 0.0;
+
+    for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
+        // Start profiling execution time
+        auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
+
+        // Perform edge detection
+        controller.PerformCLImageEdgeDetection(image_path, context, command_queue, kernel,
+        &profiling_events, &input_data, &output_data,
+        width, height, logger);
+
+        // End profiling execution time
+        auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
+
+        // Calculate total execution time(s)
+        total_execution_time += std::chrono::duration<double, std::milli>(opencl_execution_time_end - opencl_execution_time_start).count();
+        total_write_time += (profiling_events[1] - profiling_events[0]) * 1e-6;
+        total_kernel_time += (profiling_events[3] - profiling_events[2]) * 1e-6;
+        total_read_time += (profiling_events[5] - profiling_events[4]) * 1e-6;
+        total_operation_time  = total_write_time + total_kernel_time + total_read_time;
+
+        if(LOG_EVENTS){
+            // Convert timings into string
+            std::ostringstream str_write_start, str_write_end,
+                str_kernel_start, str_kernel_end,
+                str_read_start, str_read_end;
+
+            str_write_start << profiling_events[0];
+            str_write_end << profiling_events[1];
+            logger.log("Write event start: " + str_write_start.str(), Logger::LogLevel::INFO);
+            logger.log("Write event end: " + str_write_end.str(), Logger::LogLevel::INFO);
+
+            str_kernel_start << profiling_events[2];
+            str_kernel_end << profiling_events[3];
+            logger.log("Kernel event start: " + str_kernel_start.str(), Logger::LogLevel::INFO);
+            logger.log("Kernel event end: " + str_kernel_end.str(), Logger::LogLevel::INFO);
+
+            str_read_start << profiling_events[4];
+            str_read_end << profiling_events[5];
+            logger.log("Read event start: " + str_read_start.str(), Logger::LogLevel::INFO);
+            logger.log("Read event end: " + str_read_end.str(), Logger::LogLevel::INFO);
+        }
+    }
+
+    logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
+
+    // Calculate averages
+    avg_opencl_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
+    avg_opencl_kernel_write_time = total_write_time / NUMBER_OF_ITERATIONS;
+    avg_opencl_kernel_execution_time = total_kernel_time / NUMBER_OF_ITERATIONS;
+    avg_opencl_kernel_read_time = total_read_time / NUMBER_OF_ITERATIONS;
+    avg_opencl_kernel_operation = total_operation_time / NUMBER_OF_ITERATIONS;
+
+    for (size_t i = 0; i < (width * height * 4); i++) {
+        grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
+    }
+
+    return grayscale_output;
+}
+
+void PrintEndToEndExecutionTime(std::string method, double total_execution_time_ms, Logger& logger){
+    logger.log("-------------------- START OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
+
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(3) << "Total execution time (end-to-end): " << total_execution_time_ms << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+
+    logger.log("-------------------- END OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
+}
+
+void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_kernel_operation_time, Logger& logger){
+    logger.log("-------------------- START OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
+
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(5) << "Kernel write time: " << opencl_kernel_write_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel execution time: " << opencl_kernel_execution_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel read time: " << opencl_kernel_read_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel complete operation time: " << opencl_kernel_operation_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+
+    logger.log("-------------------- END OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
+}
+
+void PrintSummary(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_execution_time, double& opencl_kernel_operation_time,
+    double& cpu_execution_time, Logger& logger){
+    if(DISPLAY_TERMINAL_RESULTS)
+        std::cout << "\n **************************************** START OF OpenCL SUMMARY **************************************** " << std::endl;
+    
+    PrintEndToEndExecutionTime("OpenCL", opencl_execution_time, logger);
+    PrintRawKernelExecutionTime(opencl_kernel_execution_time, opencl_kernel_write_time, opencl_kernel_read_time, opencl_kernel_operation_time, logger);
+    
+    if(DISPLAY_TERMINAL_RESULTS){
+        std::cout << " **************************************** END OF OpenCL SUMMARY **************************************** " << std::endl;
+        std::cout << "\n **************************************** START OF CPU SUMMARY **************************************** " << std::endl;
+    }
+
+    PrintEndToEndExecutionTime("CPU", cpu_execution_time, logger);
+
+    if(DISPLAY_TERMINAL_RESULTS)
+        std::cout << "\n **************************************** END OF CPU SUMMARY **************************************** " << std::endl;
+}
+
+double ComputeMAE(const cv::Mat& reference, const cv::Mat& result){
+    cv::Mat difference;
+    cv::absdiff(reference, result, difference);
+    return cv::mean(difference)[0];
+}
+
+void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
+    if(SAVE_IMAGES){
+        // Convert output data to OpenCV matrix
+        auto new_image_path = "images/opencl_grayscale_" + std::filesystem::path(image_path).filename().string();
+        cv::imwrite(new_image_path, opencl_output_image);
+    }
+}
+
+void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double, double>>& results){
+    std::ofstream file(filename);
+    file << "Timestamp, Image, Resolution, Num_Iterations, avg_CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, avg_OpenCL_kernel_write_ms, avg_OpenCL_kernel_read_ms, avg_OpenCL_kernel_operation_ms, Error_MAE\n";
+    for (const auto& [timestamp, image, resolution, num_iterations, avg_cpu_time, avg_opencl_time, avg_opencl_kernel_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time, mae] : results) {
+        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << avg_cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", "
+        << avg_opencl_kernel_write_time << ", " << avg_opencl_kernel_read_time << ", " << avg_opencl_kernel_operation_time << ", " << mae << "\n";
+    }
+    file.close();
 }
 
 int main()
 {
     std::cout << "Hello from EdgeDetection" << std::endl;
+    cv::ocl::setUseOpenCL(false);
+
+    // Initialise (singleton) Logger
+    Logger& logger = Logger::getInstance();
+    InitLogger(logger);
+    logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
+    logger.log("Initialised logger", Logger::LogLevel::INFO);
+
+    // Initialise controllers
+    Controller controller;
+    FileHandler file_handler;
+
+    // Initialise OpenCL variables
+    cl_context context;
+    cl_command_queue command_queue;
+    cl_program program;
+    cl_kernel kernel;
+    cl_int err_num = 0;
+
+    // Initialise results vector
+    std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double, double>> comparison_results;
+
+    // Initialise OpenCL platforms and devices
+    InitOpenCL(controller, &context, &command_queue, &program, &kernel);
+
+    // Load the images
+    auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
+
     return 0;
 }
