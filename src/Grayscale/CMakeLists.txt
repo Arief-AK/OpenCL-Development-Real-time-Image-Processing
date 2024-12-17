@@ -1,3 +1,6 @@
+# Print the build type
+message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
+
 # Function to correlate sources to header files
 function(collect_sources_from_headers source_var header_dir source_dir)
     set(sources "")
@@ -60,11 +63,7 @@ message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})
 file(GLOB IMAGE_FILES "${IMAGES_SOURCE_DIR}/*.*") # Match all files in the directory
 
 # Define the target image directory
-if(WIN32)
-    set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/Debug/images)
-elseif(UNIX AND NOT APPLE)
-    set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/images)
-endif()
+set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/images)
 
 # Ensure the target directory is cleaned up
 if(EXISTS ${IMAGES_BINARY_DIR})
@@ -79,13 +78,8 @@ foreach(IMAGE_FILE ${IMAGE_FILES})
     get_filename_component(IMAGE_NAME ${IMAGE_FILE} NAME)
     configure_file(${IMAGE_FILE} ${IMAGES_BINARY_DIR}/${IMAGE_NAME} COPYONLY)
 endforeach()
-message(STATUS "Image sources have re-located to: " ${IMAGES_BINARY_DIR})
+message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
 
 # Move the kernel file(s) into the executable directory
-if(WIN32)
-    message(STATUS "The executable is located in: " ${CMAKE_CURRENT_BINARY_DIR} "/Debug")
-    configure_file(kernel/grayscale.cl ${CMAKE_CURRENT_BINARY_DIR}/Debug/grayscale.cl COPYONLY)
-elseif(UNIX AND NOT APPLE)
-    message(STATUS "The executable is located in: " ${CMAKE_CURRENT_BINARY_DIR})
-    configure_file(kernel/grayscale.cl ${CMAKE_CURRENT_BINARY_DIR}/grayscale.cl COPYONLY)
-endif()
+configure_file(kernel/grayscale.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/grayscale.cl COPYONLY)
+message(STATUS "The kernel is located in: " ${CMAKE_CURRENT_BINARY_DIR})
