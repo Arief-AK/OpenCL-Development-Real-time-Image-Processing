@@ -4,7 +4,12 @@ import matplotlib.pyplot as plt
 
 # 0 - Linux
 # 1 - Windows
-USING_OS = 0
+USING_OS = 1
+
+# 0 - Debug
+# 1- Release
+BUILD_TYPE = 1
+
 SHOW_FIGURES = False
 SHOW_TERMINAL_OUTPUT = False
 SAVE_DATAFRAME = True
@@ -88,18 +93,27 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     os_name = ""
+    build_type = ""
 
-    # Build the absolute path
+    # Initialise build type
+    if BUILD_TYPE == 0:
+        build_type = "Debug"
+    elif BUILD_TYPE == 1:
+        build_type = "Release"
+    else:
+        print("Unrecognised Build Type")
+
+    # Setup correct OS
     if USING_OS == 0:
         os_name = "Linux"
-        csv_path = os.path.abspath(os.path.join(script_dir, "../../../build/src/Grayscale/results.csv"))    # Linux
     elif USING_OS == 1:
         os_name = "Windows"
-        csv_path = os.path.abspath(os.path.join(script_dir, "../../../build/src/Grayscale/Debug/results.csv"))    # Windows
     else:
         os_name = "UNDEFINED"
         print("Unrecognised OS")
 
+    # Build the absolute path
+    csv_path = os.path.abspath(os.path.join(script_dir, f"../../../build/src/Grayscale/{build_type}/results.csv"))
     print(f"Looking for the csv in: {csv_path}")
 
     # Load the csv file
