@@ -10,7 +10,7 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-int NUMBER_OF_ITERATIONS = 1;
+int NUMBER_OF_ITERATIONS = 100;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
