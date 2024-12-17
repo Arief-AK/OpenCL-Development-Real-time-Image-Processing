@@ -12,9 +12,9 @@
 
 int NUMBER_OF_ITERATIONS = 1;
 
-bool PERFORM_COMP = false;
+bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = true;
+bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -164,6 +164,64 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     return output_data;
 }
 
+cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logger& logger){
+    std::ostringstream oss;
+    oss << "Performing CPU Sobel edge detection on " << image_path << "...";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    
+    // Initialise variables
+    cv::Mat input_image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
+    if(input_image.empty()){
+        if(input_image.channels() != 1)
+            logger.log("Image is not in Grayscale!", Logger::LogLevel::ERROR);
+        logger.log("Failed to read image", Logger::LogLevel::ERROR);
+    }
+
+    // Initialise output variable
+    cv::Mat output_image;
+
+    // Initialise average variables
+    double total_execution_time = 0.0;
+
+    for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
+        // Loop through each pixel
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        cv::Mat sobel_x = (cv::Mat_<float>(3,3) << -1, 0, 1,
+                                                   -2, 0, 2,
+                                                   -1, 0, 1);
+
+        cv::Mat sobel_y = (cv::Mat_<float>(3,3) << -1, -2, -1,
+                                                   0, 0, 0,
+                                                   1, 2, 1);
+
+        // Gradient images
+        cv::Mat gradient_x, gradient_y;
+
+        // Apply Sobel kernels to compute gradients
+        cv::filter2D(input_image, gradient_x, CV_32F, sobel_x); // X-gradient
+        cv::filter2D(input_image, gradient_y, CV_32F, sobel_y); // Y-gradient
+
+        // Compute the gradient magnitude
+        cv::Mat magnitude;
+        cv::magnitude(gradient_x, gradient_y, magnitude);
+
+        // Normalise the magnitude to RGB [0 - 255] and convert into 8-bit
+        // cv::normalize(magnitude, output_image, 0, 255, cv::NORM_MINMAX);
+        magnitude.convertTo(output_image, CV_8UC1);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        total_execution_time += std::chrono::duration<double, std::milli>(end - start).count();
+    }
+
+    logger.log("CPU Sobel edge-detection complete", Logger::LogLevel::INFO);
+
+    // Calculate average
+    avg_cpu_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
+
+    return output_image;
+}
+
 void PrintEndToEndExecutionTime(std::string method, double total_execution_time_ms, Logger& logger){
     logger.log("-------------------- START OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
 
@@ -296,7 +354,7 @@ int main()
 
         // Perform OpenCL vs CPU comparison
         if(PERFORM_COMP){
-            // cpu_output_image = PerformCPU(image_path, avg_cpu_execution_time, logger);
+            cpu_output_image = PerformCPU(image_path, avg_cpu_execution_time, logger);
             
             // Calculate Mean Absolute Error and push into results vector
             auto MAE = ComputeMAE(cpu_output_image, opencl_output_image);
@@ -328,7 +386,7 @@ int main()
 
         if(DISPLAY_IMAGES){
             cv::imshow("OpenCL Sobel Edge Detection window", opencl_output_image);
-            // cv::imshow("CPU Grayscale window", cpu_output_image);
+            cv::imshow("CPU Grayscale window", cpu_output_image);
             cv::waitKey(0);
         }
     }
