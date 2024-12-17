@@ -119,7 +119,7 @@ This section provides an overview of the testing procedure and the factors consi
 ![100-iterations-Windows](../../../src/Grayscale/results/figures/Windows_100_Tulips_performance_metrics.png)
 ![100-iterations-Linux](../../../src/Grayscale/results/figures/Linux_100_Tulips_performance_metrics.png)
 
-### Summary
+## Summary
 #### Execution Time (End-to-End)
 1. `OpenCL` maintains a near-linear execution time as `pixel-count` increases
 2. Performance gain remains consistent across iterations

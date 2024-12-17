@@ -17,6 +17,7 @@ Compared to other edge operator, Sobel has two main advantages:
 ## Methodology
 The operator uses two **3x3** matrix kernels which are convolved with the original image to calculate aproximations of the derivatives; one for horizontal and another for vertical.
 
+### Base Formula
 **Variables**:
 - **A**: Source image
 - **Gx**: Image matrix with each point contains the **horizontal** derivative approximations
@@ -29,3 +30,64 @@ G_x = \begin{bmatrix}+1 & 0 & -1\\+2 & 0 & -2\\+1 & 0 & -1\end{bmatrix} * A \\
 G_y = \begin{bmatrix}+1 & +2 & +1\\0 & 0 & 0\\-1 & -2 & -1\end{bmatrix} * A
 ```
 
+### Improved Formula
+The sobel matrix kernels can be decomoposed as products of an **averaging** and a **differentiation** kernel, which computes a gradient with smoothing.
+
+```math
+G_x = \begin{bmatrix}1\\2\\1\end{bmatrix} * (\begin{bmatrix}1 & 0 & -1\end{bmatrix} * A)\\
+G_y = \begin{bmatrix}+1\\0\\-1\end{bmatrix} * (\begin{bmatrix}1 & 0 & -1\end{bmatrix} * A)
+```
+
+In implementations, this separable computation can be advantageous since it implies fewer arithmetic operations for each image point (pixel).
+
+**Properties**:
+1. `G_x`: Increasing in the "right-direction"
+2. `G_y`: Increasing in the "down-direction"
+
+### Supporting Formulas
+At each point (pixel) in the image, the **magnitude** of the gradient can be calculated using:
+```math
+G = \sqrt{G_x^2 + G_y^2}
+```
+
+The **direction** of the gradient can be calculated using:
+```math
+\theta = atan2(G_y, G_x)
+```
+
+Therefore, the complete calculation can be described in pseudocode as:
+```math
+N(x,y) = \sum_{i=-1}^{1}\sum_{j=-1}^{1}K(i,j)P(x-i,y-j)
+```
+
+**Where**:
+- **N(x, y)**: New pixel matrix
+- **K(i, j)**: `Average` and `Differential` matrices
+- **P(x-i, y-j)**: Original matrix
+
+## OpenCL Kernel
+TBA
+
+### Parameters
+TBA
+
+### Operation
+TBA
+
+## Performance Analysis
+TBA
+
+### Test Outline
+TBA
+
+#### 5 Iterations
+TBA
+
+#### 10 Iterations
+TBA
+
+#### 100 Iterations
+TBA
+
+## Summary
+TBA
