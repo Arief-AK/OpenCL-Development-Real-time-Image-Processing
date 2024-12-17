@@ -10,11 +10,11 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-int NUMBER_OF_ITERATIONS = 100;
+int NUMBER_OF_ITERATIONS = 1;
 
-bool PERFORM_COMP = true;
+bool PERFORM_COMP = false;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = false;
+bool DISPLAY_IMAGES = true;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -104,8 +104,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     GetImageOpenCL(image_path, &input_data, &width, &height, logger);
 
     // Initialise output variables
-    std::vector<float> output_data(width * height);
-    std::vector<unsigned char> grayscale_output(width * height * 4);
+    std::vector<unsigned char> output_data(width * height);
 
     // Initialise average variables
     double total_execution_time = 0.0;
@@ -153,7 +152,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         }
     }
 
-    logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
+    logger.log("OpenCL Edge detection conversion complete", Logger::LogLevel::INFO);
 
     // Calculate averages
     avg_opencl_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
@@ -162,11 +161,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     avg_opencl_kernel_read_time = total_read_time / NUMBER_OF_ITERATIONS;
     avg_opencl_kernel_operation = total_operation_time / NUMBER_OF_ITERATIONS;
 
-    for (size_t i = 0; i < (width * height * 4); i++) {
-        grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
-    }
-
-    return grayscale_output;
+    return output_data;
 }
 
 void PrintEndToEndExecutionTime(std::string method, double total_execution_time_ms, Logger& logger){
@@ -275,5 +270,69 @@ int main()
     // Load the images
     auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
 
+    // Iterate through the images
+    for(const auto& image_path: image_paths){
+        // Initialise image variables
+        cl_int width, height;
+        
+        // Initialise comparison image
+        cv::Mat cpu_output_image;
+
+        // Initialise timing variables
+        double avg_opencl_execution_time = {};
+        double avg_opencl_kernel_write_time = {};
+        double avg_opencl_kernel_execution_time = {};
+        double avg_opencl_kernel_read_time = {};
+        double avg_opencl_kernel_operation_time = {};
+        double avg_cpu_execution_time = {};
+
+        // Perform OpenCL and get output data
+        auto output_data = PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
+            avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
+            width, height, logger);
+        
+        cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
+        SaveImages(image_path, opencl_output_image);
+
+        // Perform OpenCL vs CPU comparison
+        if(PERFORM_COMP){
+            // cpu_output_image = PerformCPU(image_path, avg_cpu_execution_time, logger);
+            
+            // Calculate Mean Absolute Error and push into results vector
+            auto MAE = ComputeMAE(cpu_output_image, opencl_output_image);
+            
+            // Get timestamp
+            auto timestamp = logger.getCurrentTime();
+            
+            // Get the resolution
+            std::ostringstream str_width, str_height;
+            str_width << width;
+            str_height << height;
+            std::string resolution = str_width.str()  + "x" + str_height.str();
+
+            // Append to the comparison result vector
+            comparison_results.emplace_back(timestamp, image_path, resolution, NUMBER_OF_ITERATIONS,
+                                            avg_cpu_execution_time, avg_opencl_execution_time,
+                                            avg_opencl_kernel_execution_time, 
+                                            avg_opencl_kernel_write_time, avg_opencl_kernel_read_time,
+                                            avg_opencl_kernel_operation_time,
+                                            MAE);
+
+            // Print summary
+            PrintSummary(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_execution_time, avg_opencl_kernel_operation_time,
+                         avg_cpu_execution_time, logger);
+
+            // Write results to CSV
+            WriteResultsToCSV(OUTPUT_FILE, comparison_results);
+        }
+
+        if(DISPLAY_IMAGES){
+            cv::imshow("OpenCL Sobel Edge Detection window", opencl_output_image);
+            // cv::imshow("CPU Grayscale window", cpu_output_image);
+            cv::waitKey(0);
+        }
+    }
+
+    std::cout << "Done!" << std::endl;
     return 0;
 }
