@@ -106,41 +106,49 @@ This section provides an overview of the testing procedure and the factors consi
 ![Artemis](../../../src/Grayscale/images/Artemis_small240.jpg)
 ![Tulips](../../../src/Grayscale/images/Tulips_small240.jpg)
 
-#### 5 Iterations
-![5-iterations-Windows](../../../src/Grayscale/results/figures/Windows_5_Artemis_performance_metrics.png)
+### 5 Iterations
 
-1. Overall `OpenCL` performs faster when measured end-to-end
-2. Overall `OpenCL` kernel operations are faster
-3. End-to-end speedup factor is positive throughout resolutions
-4. Operations speedup factor is positive throughout resolutions
+![5-iterations-Windows](../../../src/Grayscale/results/figures/Windows_5_Tulips_performance_metrics.png)
+![5-iterations-Linux](../../../src/Grayscale/results/figures/Linux_5_Tulips_performance_metrics.png)
 
-![5-iterations-Linux](../../../src/Grayscale/results/figures/Linux_5_Artemis_performance_metrics.png)
+### 10 Iterations
+![10-iterations-Windows](../../../src/Grayscale/results/figures/Windows_10_Tulips_performance_metrics.png)
+![10-iterations-Linux](../../../src/Grayscale/results/figures/Linux_10_Tulips_performance_metrics.png)
 
-1. Overall `CPU` end-to-end and operational times are faster
-2. There is no speedup factor for both end-to-end or operational execution
-
-#### 10 Iterations
-![10-iterations-Windows](../../../src/Grayscale/results/figures/Windows_10_Artemis_performance_metrics.png)
-
-1. Overall `OpenCL` performs better for both end-to-end and operational timings
-2. `OpenCL` speedup factor is `positive` for both end-to-end and operational
-
-![10-iterations-Linux](../../../src/Grayscale/results/figures/Linux_10_Artemis_performance_metrics.png)
-
-1. Overall `CPU` performs better for both end-to-end and operational
-2. `OpenCL` has `negative` speedup factor for both end-to-end and operational
-
-#### 100 Iterations
-![100-iterations-Windows](../../../src/Grayscale/results/figures/Windows_100_Artemis_performance_metrics.png)
-
-1. `OpenCL` performs faster end-to-end execution for smaller resolutions
-2. `CPU` overtakes towards higher resolutions
-3. Speedup factor of `OpenCL` gradually decreases as resolution increases
-
-![100-iterations-Linux](../../../src/Grayscale/results/figures/Linux_100_Artemis_performance_metrics.png)
-
-1. Overall `CPU` performs better for all resolutions
-2. No speedup factor produced
+### 100 Iterations
+![100-iterations-Windows](../../../src/Grayscale/results/figures/Windows_100_Tulips_performance_metrics.png)
+![100-iterations-Linux](../../../src/Grayscale/results/figures/Linux_100_Tulips_performance_metrics.png)
 
 ### Summary
-TBA
+#### Execution Time (End-to-End)
+1. `OpenCL` maintains a near-linear execution time as `pixel-count` increases
+2. Performance gain remains consistent across iterations
+
+#### Kernel Operation Time
+1. `OpenCL` kernel `execution` dominates its `operation` time.
+2. At largest testing resolution (`1023x819`), the kernel `execution` time remains under `~2ms`
+3. `Write` times (Host -> Device) at range of: `~0.3ms - 0.004ms`
+4. `Read` times (Device -> Host) at range of: `~0.7ms - 0.003ms`
+
+#### Speedup Factor
+1. `OpenCL` provides significant speedup compared to `CPU`, particularly at high resolutions
+2. At largest testing resolution, the speedup factor is: `~7ms`
+3. Kernel operations experience higher speedups compared to end-to-end due to memory overheads
+
+#### Accuracy
+1. The **Mean Absolute Error (MAE)** decreases as the resolution increases due to reduced quantisation errors
+
+#### Performance Gain
+1. `OpenCL` achieves consistent `4x-6x` end-to-end speedup over the `CPU`
+2. Kernel operations can reach `~25x` speedup compared to `CPU` equivalent tasks
+
+#### Efficiency
+1. `OpenCL` achieves stable execution times as resolution increases
+2. Kernel `operations` dominate (slower) OpenCL `execution`, indicating minimal bottlenecks from `read/write` overhead
+
+#### Portability
+1. `OpenCL` showcase its ability to work on different OS systems
+2. `OpenCL` showcase its independence from hardware platforms
+
+#### Tradeoffs
+1. As iterations increase, the `speedup` factor decreases due to memory/execution overheads
