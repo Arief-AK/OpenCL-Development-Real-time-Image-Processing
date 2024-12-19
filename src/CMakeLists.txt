@@ -1,4 +1,5 @@
 SUBDIRS(
     EdgeDetection
+    GaussianBlur
     Grayscale
 )

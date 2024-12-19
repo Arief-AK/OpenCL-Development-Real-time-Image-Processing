@@ -16,7 +16,7 @@ function(collect_sources_from_headers source_var header_dir source_dir)
     set(${source_var} ${sources} PARENT_SCOPE)
 endfunction()
 
-# Find OpenCL package/installation
+# Find OpenCL package
 find_package(OpenCL REQUIRED)
 if (OpenCL_FOUND)
     message(STATUS "Operating System: ${CMAKE_SYSTEM_NAME}")
@@ -36,13 +36,9 @@ else()
     message(FATAL_ERROR "OpenCV not found")
 endif()
 
-# Set the OpenCL library
-set(OS_LIB OpenCL::OpenCL)
-
 # List all headers used in this project
 set(HEADERS
     include/InfoPlatform.hpp
-    include/Controller.hpp
     include/FileHandler.hpp
     include/Logger.hpp
 )
@@ -50,19 +46,18 @@ set(HEADERS
 # Collect matching sources based on the headers
 collect_sources_from_headers(SOURCES include src ${HEADERS})
 
-# Add executable to the CMake framework
-add_executable(EdgeDetection_OpenCL ${SOURCES} EdgeDetection.cpp)
+# Add the executable
+add_executable(GaussianBlur GaussianBlur.cpp)
 
-# Include the directory with kernel file
-target_include_directories(EdgeDetection_OpenCL PRIVATE include)
-target_include_directories(EdgeDetection_OpenCL PRIVATE kernel)
+# Include directories
+target_include_directories(GaussianBlur PRIVATE include)
 
-# Link the OpenCL and OpenCV library to the executable
-target_link_libraries(EdgeDetection_OpenCL ${OS_LIB} ${OpenCV_LIBS})
+# Link OpenCL library
+target_link_libraries(GaussianBlur PRIVATE ${OpenCL_LIBRARIES} ${OpenCV_LIBS})
 
 # Define the source images directory and the target images directory
-set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/EdgeDetection/images)
-message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})   # Grayscale pictures required for edge detection
+set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/images)
+message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})
 
 # Find all images in the source images directory
 file(GLOB IMAGE_FILES "${IMAGES_SOURCE_DIR}/*.*") # Match all files in the directory
@@ -84,7 +79,3 @@ foreach(IMAGE_FILE ${IMAGE_FILES})
     configure_file(${IMAGE_FILE} ${IMAGES_BINARY_DIR}/${IMAGE_NAME} COPYONLY)
 endforeach()
 message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
-
-# Move the kernel file(s) into the executable directory
-configure_file(kernel/sobel_edge.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/sobel_edge.cl COPYONLY)
-message(STATUS "The kernel is located in: ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")
