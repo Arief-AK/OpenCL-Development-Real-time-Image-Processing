@@ -68,25 +68,40 @@ N(x,y) = \sum_{i=-1}^{1}\sum_{j=-1}^{1}K(i,j)P(x-i,y-j)
 ## OpenCL Kernel
 The following subsections showcases the `sobel_edge.cl` kernel and describes the steps taken to perform Sobel edge-detection.
 
+### Purpose
+Take an input image and apply the Sobel operator to compute the intensity gradient at each pixel
+
 ### Parameters
-1. `image2d_t inputImage`: TBA
-2. `image2d_t outputImage`: TBA
-3. `int width`: TBA
-4. `int height`: TBA
+1. **`image2d_t` inputImage**: Converted `2D` image data to `std::vector<unsigned char>`
+2. **`image2d_t` outputImage**: Output `std::vector<unsigned char>` with dimension `width * height`
+3. **`int` width**: Height of the input image
+4. **`int` height**: Width of the input image
 
 ### Operation
-TBA
-
 #### Kernel: Initialisation
 ```c++
 int x = get_global_id(0);
 int y = get_global_id(1);
 ```
+**Global thread assignment**: Each work item is processes one pixel, identified by `(x,y)`, the global thread IDs.
 
 #### Kernel: Bounds
 ```c++
 if (x >= 1 && x < width - 1 && y >= 1 && y < height - 1)
 ```
+**Boundary Check**: Ensures the pixel is not on the edges of the image
+
+##### Why Start with `x >= 1` and Not Surpass `x < width - 1`?
+Sobel operators require `3x3` region of pixels around the current pixel to be processed. For any pixel `(x,y)` this means acessing the following pixels:
+- Horizontal (x): x-1(left),  x(Middle),  x+1(Right)
+- Vertical (y): y-1(left),  y(Middle),  y+1(Right)
+
+##### Out of bound cases
+If `x=0`, the region `x-1` will be out of bounds!
+
+If `x=width - 1`, the region `x+1` will be out of bounds!
+
+Same logic applies to the vertical boundaries.
 
 #### Kernel: Variables
 ```c++
@@ -94,7 +109,7 @@ int2 coord;
 float gx = 0.0f;
 float gy = 0.0f;
 
-// Sobel Kernels
+// Sobel operator
 const int sobelX[3][3] = {
     {-1, 0, 1},
     {-2, 0, 2},
@@ -123,6 +138,22 @@ for (int ky = -1; ky <= 1; ky++) {
     }
 }
 ```
+Gets the `intensity` of the pixel with `read_imagef(...).x` as the `inputImage` is in `grayscale`. Multiplies pixel intensity with Sobel filter values `sobelX` and `sobelY`. Compute the magnitude and accumulate results onto `g_x` and `g_y` gradients.
+
+###### Visual example:
+For an image `5x5` (width x height)
+```
+   Image Coordinates:
+   0  1  2  3  4
+0  *  *  *  *  *  <- Cannot process these (no valid neighbors)
+1  * [ ] [ ] [ ] *  <- Can process only the inner region (with neighbors)
+2  * [ ] [ ] [ ] *  
+3  * [ ] [ ] [ ] *  
+4  *  *  *  *  *  <- Cannot process these (no valid neighbors)
+
+   [ ] -> Processed pixels
+   *   -> Ignored boundary pixels
+```
 
 #### Kernel: Calculation and Output
 ```c++
@@ -133,6 +164,7 @@ magnitude = clamp(magnitude, 0.0f, 1.0f);
 // Write to output image
 write_imagef(outputImage, (int2)(x, y), (float4)(magnitude, magnitude, magnitude, 1.0f));
 ```
+Calculate the `magnitude` of the pixel and clamp the values to the range `[0,1]` to fit normalised values. Write the gradient magnitude as grayscale value to the output image in `RGBA` format.
 
 #### Kernel: Complete Implementation
 ```c++
