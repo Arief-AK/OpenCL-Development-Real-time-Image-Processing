@@ -1,6 +1,9 @@
 # Print the build type
 message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
 
+# Set runtime output directory based on build type
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+
 # Function to correlate sources to header files
 function(collect_sources_from_headers source_var header_dir source_dir)
     set(sources "")
