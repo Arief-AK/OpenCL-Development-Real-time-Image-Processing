@@ -218,19 +218,71 @@ __kernel void sobel_edge_detection(__read_only image2d_t inputImage,
 ```
 
 ## Performance Analysis
-TBA
+This section provides an overview of the testing procedure and the factors considered in the analysis.
 
 ### Test Outline
-TBA
+1. Load the `Tulips` images from the `images` directory
+2. Perform the Sobel edge-detection on the `CPU` and `OpenCL` with `5,` `10`, and `100` iterations
+3. Record the following factors:
+    - Average end-to-end execution time
+    - Average Kernel operations timings (reading, executing, and writing)
+    - Output comparison results with MAE
+4. Save results into a `.csv` file
+5. Peform on Linux and Windows
+
+<p align="center">
+  <img src="../../../src/EdgeDetection/images/Tulips_medium640.jpg" />
+</p>
 
 #### 5 Iterations
-TBA
+| Windows  | Linux |
+| :-------------: | :-------------: |
+| ![5-windows](../../../src/EdgeDetection/results/figures/Windows_5_Tulips_performance_metrics.png)  | ![5-linux](../../../src/EdgeDetection/results/figures/Linux_5_Tulips_performance_metrics.png)  |
 
 #### 10 Iterations
-TBA
+| Windows  | Linux |
+| :-------------: | :-------------: |
+| ![10-windows](../../../src/EdgeDetection/results/figures/Windows_10_Tulips_performance_metrics.png)  | ![10-linux](../../../src/EdgeDetection/results/figures/Linux_10_Tulips_performance_metrics.png)  |
 
 #### 100 Iterations
-TBA
+| Windows  | Linux |
+| :-------------: | :-------------: |
+| ![100-windows](../../../src/EdgeDetection/results/figures/Windows_100_Tulips_performance_metrics.png)  | ![100-linux](../../../src/EdgeDetection/results/figures/Linux_100_Tulips_performance_metrics.png)  |
 
 ## Summary
-TBA
+### Execution Time (End-to-End)
+`OpenCL` consistently outperforms the `CPU` as resolution increases.
+
+#### Examples
+1. With resolution of `1023x819` performed with `5` iterations
+    - **CPU**: 16.3241ms
+    - **OpenCL**: 2.03163ms
+    - **Speedup**: ```math 16/2``` ≈ 8x
+
+2. With resolution of `1023x819` performed with `100` iterations
+    - **CPU**: 7.13961ms
+    - **OpenCL**: 1.36053ms
+    - **Speedup**: ```math 7/1``` ≈ 7x
+
+### Kernel Operation
+1. `OpenCL` kernel execution often below `1ms`
+2. Overhead from `OpenCL` memory operations is minimal compared to the total CPU operation time.
+
+### Accuracy
+1. As resolution increases, the `MAE` values follow a trend of `MAE < 1.0`
+2. Demonstrating high accuracy for `OpenCL` implementation
+
+### Performance Gain
+For both end-to-end and kernel operations a `positive` speedup trend exists.
+
+#### Examples
+1. With resolution of `1023x819` performed with `5` iterations
+    - **End-to-End Speedup**: ```math 16/2``` ≈ 8x
+    - **Kernel Speedup**: ```math 16/0.386944``` ≈ 41x
+
+2. With resolution of `1023x819` performed with `100` iterations
+    - **End-to-End Speedup**: ```math 7/1``` ≈ 7x
+    - **Kernel Speedup**: ```math 7/0.290496``` ≈ 24x
+
+### Portability
+`OpenCL` demonstrates consistent scalibility across iterations and resolutions
