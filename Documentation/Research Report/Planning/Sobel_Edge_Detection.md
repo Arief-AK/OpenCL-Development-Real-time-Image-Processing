@@ -249,7 +249,7 @@ This section provides an overview of the testing procedure and the factors consi
 | :-------------: | :-------------: |
 | ![100-windows](../../../src/EdgeDetection/results/figures/Windows_100_Tulips_performance_metrics.png)  | ![100-linux](../../../src/EdgeDetection/results/figures/Linux_100_Tulips_performance_metrics.png)  |
 
-## Summary
+## Summary: (Linux-Only)
 ### Execution Time (End-to-End)
 `OpenCL` consistently outperforms the `CPU` as resolution increases.
 
