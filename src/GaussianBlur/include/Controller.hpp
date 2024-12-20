@@ -5,6 +5,8 @@
 #include <sstream>
 #include <cstring>
 #include <vector>
+
+#define _USE_MATH_DEFINES
 #include <cmath>
 
 #include <InfoPlatform.hpp>
