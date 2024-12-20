@@ -10,14 +10,14 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-int NUMBER_OF_ITERATIONS = 1;
+int NUMBER_OF_ITERATIONS = 100;
 
 int GAUSSIAN_KERNEL_SIZE = 5;
 float GAUSSIAN_SIGMA = 1.5f;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = true;
+bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -158,7 +158,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         }
     }
 
-    logger.log("OpenCL Edge detection conversion complete", Logger::LogLevel::INFO);
+    logger.log("OpenCL Gaussian Blur conversion complete", Logger::LogLevel::INFO);
 
     // Calculate averages
     avg_opencl_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
