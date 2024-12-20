@@ -1,3 +1,5 @@
+set(KERNEL_FILE "gaussian_blur.cl")
+
 # Print the build type
 message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
 
@@ -38,6 +40,7 @@ endif()
 
 # List all headers used in this project
 set(HEADERS
+    include/Controller.hpp
     include/InfoPlatform.hpp
     include/FileHandler.hpp
     include/Logger.hpp
@@ -47,10 +50,11 @@ set(HEADERS
 collect_sources_from_headers(SOURCES include src ${HEADERS})
 
 # Add the executable
-add_executable(GaussianBlur GaussianBlur.cpp)
+add_executable(GaussianBlur ${SOURCES} GaussianBlur.cpp)
 
 # Include directories
 target_include_directories(GaussianBlur PRIVATE include)
+target_include_directories(GaussianBlur PRIVATE kernel)
 
 # Link OpenCL library
 target_link_libraries(GaussianBlur PRIVATE ${OpenCL_LIBRARIES} ${OpenCV_LIBS})
@@ -79,3 +83,7 @@ foreach(IMAGE_FILE ${IMAGE_FILES})
     configure_file(${IMAGE_FILE} ${IMAGES_BINARY_DIR}/${IMAGE_NAME} COPYONLY)
 endforeach()
 message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
+
+# Move the kernel file(s) into the executable directory
+configure_file(kernel/${KERNEL_FILE} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${KERNEL_FILE} COPYONLY)
+message(STATUS "The kernel is located in: ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")
