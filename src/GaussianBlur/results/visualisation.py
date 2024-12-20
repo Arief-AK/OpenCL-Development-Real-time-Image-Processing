@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 # 0 - Linux
 # 1 - Windows
-USING_OS = 1
+USING_OS = 0
 
 # 0 - Debug
 # 1- Release
