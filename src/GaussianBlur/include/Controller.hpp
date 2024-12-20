@@ -26,6 +26,8 @@ public:
     cl_program CreateProgram(cl_context context, cl_device_id device, const char* filename);
     cl_kernel CreateKernel(cl_program program, const char* kernel_name);
 
+    std::vector<float> GenerateGaussianKernel(int kernel_size, float sigma);
+
     void DisplayPlatformInformation(cl_platform_id platform);
     void Cleanup(cl_context context = 0, cl_command_queue commandQueue = 0, cl_program program = 0, cl_kernel kernel = 0, cl_sampler sampler = 0, cl_mem* mem_objects = 0, int num_mem_objects = 0);
 
@@ -43,8 +45,6 @@ public:
 
 private:
     cl_uint num_platforms, num_devices;
-
-    std::vector<float> GenerateGaussianKernel(int kernel_size, float sigma);
 };
 
 #endif // CONTROLLER_H

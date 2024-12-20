@@ -10,13 +10,14 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-int NUMBER_OF_ITERATIONS = 1;
+int NUMBER_OF_ITERATIONS = 5;
+
 int GAUSSIAN_KERNEL_SIZE = 5;
 float GAUSSIAN_SIGMA = 1.5f;
 
-bool PERFORM_COMP = false;
+bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = true;
+bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -169,6 +170,58 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     return output_data;
 }
 
+cv::Mat PerformCPU(Controller& controller, std::string image_path, double& avg_cpu_execution_time, Logger& logger){
+    std::ostringstream oss;
+    oss << "Performing CPU Gaussian Blur on " << image_path << "...";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    
+    // Initialise variables
+    cv::Mat input_image = cv::imread(image_path, cv::IMREAD_UNCHANGED);
+    if(input_image.empty()){
+        logger.log("Failed to read image", Logger::LogLevel::ERROR);
+    }
+
+    // Convert image to RGBA format
+    cv::Mat rgba_image;
+    cv::cvtColor(input_image, rgba_image, cv::COLOR_BGR2RGBA);
+    if(rgba_image.channels() != 4)
+        logger.log("Image is not in RGBA!", Logger::LogLevel::ERROR);
+
+    // Get image dimensions
+    auto width = rgba_image.cols;
+    auto height = rgba_image.rows;
+
+    // Initialise output image
+    cv::Mat output_image(height, width, CV_8UC4);
+
+    // Disable OpenCL in OpenCV to ensure CPU-only execution
+    cv::ocl::setUseOpenCL(false);
+    std::ostringstream oss1;
+    oss1 << "OpenCL Enabled: " << cv::ocl::useOpenCL();
+    logger.log(oss1.str(), Logger::LogLevel::INFO);
+
+    // Initialise average variables
+    double total_execution_time = 0.0;
+
+    for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
+        // Loop through each pixel
+        auto start = std::chrono::high_resolution_clock::now();
+
+        // Apply Gaussian Blur
+        cv::GaussianBlur(rgba_image, output_image, cv::Size(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_KERNEL_SIZE), (double)GAUSSIAN_SIGMA);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        total_execution_time += std::chrono::duration<double, std::milli>(end - start).count();
+    }
+
+    logger.log("CPU Gaussian Blur complete", Logger::LogLevel::INFO);
+
+    // Calculate average
+    avg_cpu_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
+
+    return output_image;
+}
+
 void PrintEndToEndExecutionTime(std::string method, double total_execution_time_ms, Logger& logger){
     logger.log("-------------------- START OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
 
@@ -302,8 +355,9 @@ int main() {
 
         // Perform OpenCL vs CPU comparison
         if(PERFORM_COMP){
-            //cpu_output_image = PerformCPU(image_path, avg_cpu_execution_time, logger);
-            
+            cpu_output_image = PerformCPU(controller, image_path, avg_cpu_execution_time, logger);
+            cv::cvtColor(cpu_output_image, cpu_output_image, cv::COLOR_RGBA2BGR); // Convert to BGR for OpenCV
+
             // Calculate Mean Absolute Error and push into results vector
             auto MAE = ComputeMAE(cpu_output_image, opencl_output_image);
             
@@ -334,7 +388,7 @@ int main() {
 
         if(DISPLAY_IMAGES){
             cv::imshow("OpenCL Gaussian Blur window", opencl_output_image);
-            //cv::imshow("CPU Gaussian Blur window", cpu_output_image);
+            cv::imshow("CPU Gaussian Blur window", cpu_output_image);
             cv::waitKey(0);
         }
     }
