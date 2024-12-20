@@ -6,7 +6,6 @@
 #include <cstring>
 #include <vector>
 #include <cmath>
-#include <corecrt_math_defines.h>
 
 #include <InfoPlatform.hpp>
 #include <Logger.hpp>
