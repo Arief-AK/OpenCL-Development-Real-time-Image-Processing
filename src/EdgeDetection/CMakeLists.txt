@@ -2,7 +2,7 @@
 message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
 
 # Set runtime output directory based on build type
-if(LINUX)
+if(UNIX)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
 endif()
 
