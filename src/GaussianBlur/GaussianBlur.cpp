@@ -10,14 +10,14 @@
 #define PLATFORM_INDEX 0
 #define DEVICE_INDEX 0
 
-int NUMBER_OF_ITERATIONS = 5;
+int NUMBER_OF_ITERATIONS = 1;
 
 int GAUSSIAN_KERNEL_SIZE = 5;
 float GAUSSIAN_SIGMA = 1.5f;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = false;
+bool DISPLAY_IMAGES = true;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -194,12 +194,6 @@ cv::Mat PerformCPU(Controller& controller, std::string image_path, double& avg_c
     // Initialise output image
     cv::Mat output_image(height, width, CV_8UC4);
 
-    // Disable OpenCL in OpenCV to ensure CPU-only execution
-    cv::ocl::setUseOpenCL(false);
-    std::ostringstream oss1;
-    oss1 << "OpenCL Enabled: " << cv::ocl::useOpenCL();
-    logger.log(oss1.str(), Logger::LogLevel::INFO);
-
     // Initialise average variables
     double total_execution_time = 0.0;
 
@@ -207,8 +201,38 @@ cv::Mat PerformCPU(Controller& controller, std::string image_path, double& avg_c
         // Loop through each pixel
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Apply Gaussian Blur
-        cv::GaussianBlur(rgba_image, output_image, cv::Size(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_KERNEL_SIZE), (double)GAUSSIAN_SIGMA);
+        auto kernel = controller.GenerateGaussianKernel(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_SIGMA);
+        int halfKernel = GAUSSIAN_KERNEL_SIZE / 2;
+
+        // Apply the Gaussian kernel
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                float sumR = 0.0f, sumG = 0.0f, sumB = 0.0f, sumA = 0.0f;
+
+                for (int ky = -halfKernel; ky <= halfKernel; ky++) {
+                    for (int kx = -halfKernel; kx <= halfKernel; kx++) {
+                        int neighborX = std::clamp(x + kx, 0, width - 1);
+                        int neighborY = std::clamp(y + ky, 0, height - 1);
+
+                        cv::Vec4b neighborPixel = rgba_image.at<cv::Vec4b>(neighborY, neighborX);
+                        float weight = kernel[(ky + halfKernel) * GAUSSIAN_KERNEL_SIZE + (kx + halfKernel)];
+
+                        sumR += neighborPixel[0] * weight;
+                        sumG += neighborPixel[1] * weight;
+                        sumB += neighborPixel[2] * weight;
+                        sumA += neighborPixel[3] * weight;
+                    }
+                }
+
+                // Assign blurred pixel values
+                output_image.at<cv::Vec4b>(y, x) = cv::Vec4b(
+                    static_cast<unsigned char>(std::clamp(sumR, 0.0f, 255.0f)),
+                    static_cast<unsigned char>(std::clamp(sumG, 0.0f, 255.0f)),
+                    static_cast<unsigned char>(std::clamp(sumB, 0.0f, 255.0f)),
+                    static_cast<unsigned char>(std::clamp(sumA, 0.0f, 255.0f))
+                );
+            }
+        }
 
         auto end = std::chrono::high_resolution_clock::now();
         total_execution_time += std::chrono::duration<double, std::milli>(end - start).count();
