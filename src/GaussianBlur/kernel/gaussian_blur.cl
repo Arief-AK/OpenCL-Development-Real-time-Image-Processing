@@ -10,6 +10,10 @@ __kernel void gaussian_blur(__read_only image2d_t input_image,
     // Get the position of the current thread
     const int x = get_global_id(0);
     const int y = get_global_id(1);
+
+    if (x >= width || y >= height) {
+        return;
+    }
     
     // Initialize the sum of the pixel values
     float4 sum = (float4)(0.0f, 0.0f, 0.0f, 0.0f);

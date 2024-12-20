@@ -5,6 +5,8 @@
 #include <sstream>
 #include <cstring>
 #include <vector>
+#include <cmath>
+#include <corecrt_math_defines.h>
 
 #include <InfoPlatform.hpp>
 #include <Logger.hpp>
@@ -35,8 +37,14 @@ public:
         std::vector<cl_ulong>* profiling_events, std::vector<unsigned char>* input_data, std::vector<unsigned char>* output_data,
         cl_int& width, cl_int& height, Logger& logger);
 
+    void PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
+        std::vector<cl_ulong>* profiling_events, std::vector<unsigned char>* input_data, std::vector<unsigned char>* output_data,
+        cl_int& width, cl_int& height, Logger& logger);
+
 private:
     cl_uint num_platforms, num_devices;
+
+    std::vector<float> GenerateGaussianKernel(int kernel_size, float sigma);
 };
 
 #endif // CONTROLLER_H
