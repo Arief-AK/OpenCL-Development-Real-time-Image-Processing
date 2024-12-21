@@ -39,6 +39,8 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     for (auto && platform : platforms){
         controller.DisplayPlatformInformation(platform);
     }
+    // Initialise variable
+    std::string kernel_name = "grayscale_images.cl";
 
     // Inform user of chosen indexes for platform and device
     std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
@@ -50,15 +52,17 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     cl_bool image_support = CL_FALSE;
     clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
     if (!image_support) {
-        std::cerr << "Device does not support images." << std::endl;
-        return;
+        kernel_name = "grayscale_base.cl";
+        // std::cerr << "Device does not support images." << std::endl;
+        // return;
     }
+    controller.SetImageSupport(image_support);
 
     // Get OpenCL mandatory properties
     cl_int err_num = 0;
     *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
     *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
-    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], "grayscale.cl");
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], kernel_name.c_str());
     *kernel = controller.CreateKernel(*program, "grayscale");
 }
 
