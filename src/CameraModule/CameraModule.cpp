@@ -26,7 +26,7 @@ int main()
         cv::putText(frame, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
 
         cv::imshow("Camera Feed", frame);
-        if (cv::waitKey(1) == 27) break;  // Exit on 'ESC'
+        if (cv::waitKey(1) == 27) break;
     }
 
     cap.release();
