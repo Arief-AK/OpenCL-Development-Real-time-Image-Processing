@@ -8,7 +8,7 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 0
+#define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 100;
 
@@ -49,10 +49,18 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     // Get intended device
     auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
 
+    char device_name[256];
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
+    std::cout << "Device name: " << device_name << std::endl;
+
+    size_t maxWorkGroupSize;
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL);
+    printf("Max Work Group Size: %zu\n", maxWorkGroupSize);
+
     // Check device image support
     cl_bool image_support = CL_FALSE;
     clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
-    if (!image_support) {
+    if (image_support == CL_FALSE) {
         kernel_name = "grayscale_base.cl";
         std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
     }else{
@@ -391,7 +399,7 @@ int main(int, char**){
         auto image_support = controller.GetImageSupport();
 
         // Initialize output image based on image support
-        if (image_support) {
+        if (image_support == CL_TRUE) {
             opencl_output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
         } else {
             opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));

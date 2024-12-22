@@ -265,12 +265,12 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
     size_t region[3] = {width, height, 1};
 
     switch (m_image_support){
-    case true:
+    case CL_TRUE:
         buffers = _initGrayscleImage2D(context, nullptr, input_data, width, height, &write_event, logger);
         err_num = clEnqueueWriteImage(*command_queue, buffers.first, CL_FALSE, origin, region, 0, 0, input_data->data(), 0, nullptr, &write_event);
         break;
     
-    case false:
+    case CL_FALSE:
         buffers = _initGrayscaleBuffers(context, nullptr, input_data, width, height, &write_event, logger);
         err_num = clEnqueueWriteBuffer(*command_queue, buffers.first, CL_FALSE, 0, width * height * 4 * sizeof(unsigned char), input_data->data(), 0, nullptr, &write_event);
         if(err_num != CL_SUCCESS){
@@ -310,14 +310,14 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
     profiling_events->push_back(kernel_event_end);
 
     switch (m_image_support){
-    case true:
+    case CL_TRUE:
         err_num = clEnqueueReadImage(*command_queue, buffers.second, CL_FALSE, origin, region, 0, 0, output_data->data(), 1, &kernel_event, &read_event);
         if(err_num != CL_SUCCESS){
             logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
         }
         break;
     
-    case false:
+    case CL_FALSE:
         err_num = clEnqueueReadBuffer(*command_queue, buffers.second, CL_FALSE, 0, width * height * sizeof(float) * 4, output_data->data(), 1, &kernel_event, &read_event);
         if(err_num != CL_SUCCESS){
             logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
