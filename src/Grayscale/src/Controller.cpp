@@ -63,6 +63,11 @@ std::vector<cl_device_id> Controller::GetDevices(cl_platform_id platform)
     return m_devices;
 }
 
+cl_bool Controller::GetImageSupport()
+{
+    return m_image_support;
+}
+
 void Controller::SetImageSupport(cl_bool image_support)
 {
     m_image_support = image_support;
@@ -198,19 +203,19 @@ void Controller::Cleanup(cl_context context, cl_command_queue commandQueue, cl_p
     std::cout << "Succesfully cleaned environment" << std::endl;
 }
 
-std::pair<cl_mem, cl_mem> Controller::_initGrayscaleBuffers(cl_context *context, cl_mem *input_image, cl_mem *output_image, cl_command_queue *command_queue, std::vector<unsigned char> *input_data, cl_int width, cl_int height, cl_event *write_event, Logger& logger)
+std::pair<cl_mem, cl_mem> Controller::_initGrayscaleBuffers(cl_context *context, cl_command_queue *command_queue, std::vector<unsigned char> *input_data, cl_int width, cl_int height, cl_event *write_event, Logger& logger)
 {
     // Initialise error variable
     cl_int err_num;
 
     // Define buffers
     cl_mem input_buffer = clCreateBuffer(*context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, width * height * 4 * sizeof(unsigned char), input_data->data(), &err_num);
-    cl_mem output_buffer = clCreateBuffer(*context, CL_MEM_WRITE_ONLY, width * height * sizeof(unsigned char), nullptr, &err_num);
+    cl_mem output_buffer = clCreateBuffer(*context, CL_MEM_WRITE_ONLY, width * height * sizeof(float) * 4, nullptr, &err_num);
 
     return std::make_pair(input_buffer, output_buffer);
 }
 
-std::pair<cl_mem, cl_mem> Controller::_initGrayscleImage2D(cl_context *context, cl_mem *input_image, cl_mem *output_image, cl_command_queue *command_queue, std::vector<unsigned char> *input_data, cl_int width, cl_int height, cl_event *write_event, Logger& logger)
+std::pair<cl_mem, cl_mem> Controller::_initGrayscleImage2D(cl_context *context, cl_command_queue *command_queue, std::vector<unsigned char> *input_data, cl_int width, cl_int height, cl_event *write_event, Logger& logger)
 {
     // Initialise error variable
     cl_int err_num;
@@ -235,13 +240,12 @@ std::pair<cl_mem, cl_mem> Controller::_initGrayscleImage2D(cl_context *context, 
         logger.log("Failed to create cl_image output_image mem object", Logger::LogLevel::ERROR);
     }
 
-    return std::make_pair(*input_image, *output_image);
+    return std::make_pair(input_image, output_image);
 }
 
 void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
                                            std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<float> *output_data,
-                                           cl_int &width, cl_int &height, Logger &logger)
-{
+                                           cl_int &width, cl_int &height, Logger &logger){
     // Initialise error variable
     cl_int err_num;
     
@@ -262,12 +266,12 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
 
     switch (m_image_support){
     case true:
-        buffers = _initGrayscleImage2D(context, nullptr, nullptr, nullptr, input_data, width, height, &write_event, logger);
+        buffers = _initGrayscleImage2D(context, nullptr, input_data, width, height, &write_event, logger);
         err_num = clEnqueueWriteImage(*command_queue, buffers.first, CL_FALSE, origin, region, 0, 0, input_data->data(), 0, nullptr, &write_event);
         break;
     
     case false:
-        buffers = _initGrayscaleBuffers(context, nullptr, nullptr, nullptr, input_data, width, height, &write_event, logger);
+        buffers = _initGrayscaleBuffers(context, nullptr, input_data, width, height, &write_event, logger);
         err_num = clEnqueueWriteBuffer(*command_queue, buffers.first, CL_FALSE, 0, width * height * 4 * sizeof(unsigned char), input_data->data(), 0, nullptr, &write_event);
         if(err_num != CL_SUCCESS){
             logger.log("Failed to write cl_mem (buffer) to kernel", Logger::LogLevel::ERROR);
@@ -308,10 +312,16 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
     switch (m_image_support){
     case true:
         err_num = clEnqueueReadImage(*command_queue, buffers.second, CL_FALSE, origin, region, 0, 0, output_data->data(), 1, &kernel_event, &read_event);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
+        }
         break;
     
     case false:
-        err_num = clEnqueueReadBuffer(*command_queue, buffers.second, CL_FALSE, 0, width * height * sizeof(unsigned char), output_data->data(), 1, &kernel_event, &read_event);
+        err_num = clEnqueueReadBuffer(*command_queue, buffers.second, CL_FALSE, 0, width * height * sizeof(float) * 4, output_data->data(), 1, &kernel_event, &read_event);
+        if(err_num != CL_SUCCESS){
+            logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
+        }
         break;
 
     default:
