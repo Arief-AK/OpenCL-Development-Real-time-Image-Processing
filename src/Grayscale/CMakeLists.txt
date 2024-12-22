@@ -85,5 +85,8 @@ endforeach()
 message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
 
 # Move the kernel file(s) into the executable directory
-configure_file(kernel/grayscale.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/grayscale.cl COPYONLY)
+configure_file(kernel/grayscale_base.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/grayscale_base.cl COPYONLY)
+message(STATUS "The kernel is located in: " ${CMAKE_CURRENT_BINARY_DIR})
+
+configure_file(kernel/grayscale_images.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/grayscale_images.cl COPYONLY)
 message(STATUS "The kernel is located in: " ${CMAKE_CURRENT_BINARY_DIR})
