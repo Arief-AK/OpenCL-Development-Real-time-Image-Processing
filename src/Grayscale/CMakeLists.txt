@@ -1,6 +1,10 @@
 # Print the build type
 message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
 
+if(UNIX)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+endif()
+
 # Function to correlate sources to header files
 function(collect_sources_from_headers source_var header_dir source_dir)
     set(sources "")
@@ -56,7 +60,7 @@ target_include_directories(Grayscale_OpenCL PRIVATE kernel)
 target_link_libraries(Grayscale_OpenCL ${OS_LIB} ${OpenCV_LIBS})
 
 # Define the source images directory and the target images directory
-set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/Grayscale/images)
+set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/images)
 message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})
 
 # Find all images in the source images directory
