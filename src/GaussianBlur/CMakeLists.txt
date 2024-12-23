@@ -1,6 +1,9 @@
+set(KERNEL_FILE "gaussian_blur.cl")
+
 # Print the build type
 message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
 
+# Set runtime output directory based on build type
 if(UNIX)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
 endif()
@@ -15,7 +18,7 @@ function(collect_sources_from_headers source_var header_dir source_dir)
     set(${source_var} ${sources} PARENT_SCOPE)
 endfunction()
 
-# Find OpenCL package/installation
+# Find OpenCL package
 find_package(OpenCL REQUIRED)
 if (OpenCL_FOUND)
     message(STATUS "Operating System: ${CMAKE_SYSTEM_NAME}")
@@ -35,13 +38,10 @@ else()
     message(FATAL_ERROR "OpenCV not found")
 endif()
 
-# Set the OpenCL library
-set(OS_LIB OpenCL::OpenCL)
-
 # List all headers used in this project
 set(HEADERS
-    include/InfoPlatform.hpp
     include/Controller.hpp
+    include/InfoPlatform.hpp
     include/FileHandler.hpp
     include/Logger.hpp
 )
@@ -49,15 +49,15 @@ set(HEADERS
 # Collect matching sources based on the headers
 collect_sources_from_headers(SOURCES include src ${HEADERS})
 
-# Add executable to the CMake framework
-add_executable(Grayscale_OpenCL ${SOURCES} grayscale.cpp)
+# Add the executable
+add_executable(GaussianBlur ${SOURCES} GaussianBlur.cpp)
 
-# Include the directory with kernel file
-target_include_directories(Grayscale_OpenCL PRIVATE include)
-target_include_directories(Grayscale_OpenCL PRIVATE kernel)
+# Include directories
+target_include_directories(GaussianBlur PRIVATE include)
+target_include_directories(GaussianBlur PRIVATE kernel)
 
-# Link the OpenCL and OpenCV library to the executable
-target_link_libraries(Grayscale_OpenCL ${OS_LIB} ${OpenCV_LIBS})
+# Link OpenCL library
+target_link_libraries(GaussianBlur PRIVATE ${OpenCL_LIBRARIES} ${OpenCV_LIBS})
 
 # Define the source images directory and the target images directory
 set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/images)
@@ -85,8 +85,5 @@ endforeach()
 message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
 
 # Move the kernel file(s) into the executable directory
-configure_file(kernel/grayscale_base.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/grayscale_base.cl COPYONLY)
-message(STATUS "The kernel is located in: " ${CMAKE_CURRENT_BINARY_DIR})
-
-configure_file(kernel/grayscale_images.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/grayscale_images.cl COPYONLY)
-message(STATUS "The kernel is located in: " ${CMAKE_CURRENT_BINARY_DIR})
+configure_file(kernel/${KERNEL_FILE} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${KERNEL_FILE} COPYONLY)
+message(STATUS "The kernel is located in: ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")

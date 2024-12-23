@@ -2,7 +2,9 @@
 message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
 
 # Set runtime output directory based on build type
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+if(UNIX)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+endif()
 
 # Function to correlate sources to header files
 function(collect_sources_from_headers source_var header_dir source_dir)
@@ -60,7 +62,7 @@ target_link_libraries(EdgeDetection_OpenCL ${OS_LIB} ${OpenCV_LIBS})
 
 # Define the source images directory and the target images directory
 set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/EdgeDetection/images)
-message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})
+message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})   # Grayscale pictures required for edge detection
 
 # Find all images in the source images directory
 file(GLOB IMAGE_FILES "${IMAGES_SOURCE_DIR}/*.*") # Match all files in the directory

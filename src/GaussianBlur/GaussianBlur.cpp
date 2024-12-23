@@ -12,6 +12,9 @@
 
 int NUMBER_OF_ITERATIONS = 100;
 
+int GAUSSIAN_KERNEL_SIZE = 5;
+float GAUSSIAN_SIGMA = 1.5f;
+
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
 bool DISPLAY_IMAGES = false;
@@ -20,13 +23,14 @@ bool DISPLAY_TERMINAL_RESULTS = true;
 bool LOG_EVENTS = false;
 
 std::string TEST_DIRECTORY = "images/";
+std::string KERNEL_FILE = "gaussian_blur.cl";
+std::string KERNEL_NAME = "gaussian_blur";
 std::string OUTPUT_FILE = "results.csv";
-std::string KERNEL_NAME = "grayscale_images.cl";
 
 void InitLogger(Logger& logger){
     // Set the log file
     try{
-       logger.setLogFile("Grayscale.log");
+       logger.setLogFile("EdgeDetection.log");
     }
     catch(const std::exception& e)
     {
@@ -40,8 +44,6 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     for (auto && platform : platforms){
         controller.DisplayPlatformInformation(platform);
     }
-    // Initialise variable
-    std::string kernel_name = KERNEL_NAME;
 
     // Inform user of chosen indexes for platform and device
     std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
@@ -49,34 +51,23 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     // Get intended device
     auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
 
-    char device_name[256];
-    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
-    std::cout << "Device name: " << device_name << std::endl;
-
-    size_t maxWorkGroupSize;
-    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL);
-    printf("Max Work Group Size: %zu\n", maxWorkGroupSize);
-
     // Check device image support
     cl_bool image_support = CL_FALSE;
     clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
-    if (image_support == CL_FALSE) {
-        kernel_name = "grayscale_base.cl";
-        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
-    }else{
-        std::cout << "Device supports images." << std::endl;
+    if (!image_support) {
+        std::cerr << "Device does not support images." << std::endl;
+        return;
     }
-    controller.SetImageSupport(image_support);
 
     // Get OpenCL mandatory properties
     cl_int err_num = 0;
     *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
     *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
-    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], kernel_name.c_str());
-    *kernel = controller.CreateKernel(*program, "grayscale");
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], KERNEL_FILE.c_str());
+    *kernel = controller.CreateKernel(*program, KERNEL_NAME.c_str());
 }
 
-void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_data,
+void GetImageOpenCL(std::string image_path, std::vector<unsigned char>& input_data,
     cl_int* width, cl_int* height, Logger& logger){
     // Load the input image using OpenCV
     cv::Mat image = cv::imread(image_path, cv::IMREAD_COLOR);
@@ -89,17 +80,16 @@ void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_da
         cv::imshow("Reference Image Window", image);
     }
 
-    // Convert to RGBA and get image dimensions
-    cv::cvtColor(image, image, cv::COLOR_BGR2RGBA);
+    // Convert image to RGBA format
+    cv::Mat rgba_image;
+    cv::cvtColor(image, rgba_image, cv::COLOR_BGR2RGBA);
+
+    // Get image dimensions
     *width = image.cols;
     *height = image.rows;
 
     // Flatten image into uchar array
-    std::vector<unsigned char> _input_data(image.data, image.data + image.total() * 4);
-    cv::Mat rgba_image(*height, *width, CV_8UC4, const_cast<unsigned char*>(_input_data.data()));
-
-    // Assign parameters
-    *input_data = _input_data;
+    input_data.assign(rgba_image.data, rgba_image.data + rgba_image.total() * rgba_image.channels());
 }
 
 std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
@@ -107,7 +97,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     double& avg_opencl_kernel_operation, cl_int& width, cl_int& height, Logger& logger){
     
     std::ostringstream oss;
-    oss << "Performing OpenCL grayscaling on " << image_path << "...";
+    oss << "Performing OpenCL Gaussian Blur on " << image_path << "...";
     logger.log(oss.str(), Logger::LogLevel::INFO);
 
     // Initialise image variables
@@ -117,13 +107,10 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     std::vector<cl_ulong> profiling_events;
 
     // Get image
-    GetImageOpenCL(image_path, &input_data, &width, &height, logger);
+    GetImageOpenCL(image_path, input_data, &width, &height, logger);
 
     // Initialise output variables
-    std::vector<float> output_data(width * height * 4);
-    
-    // Initialise output image (grayscale)
-    std::vector<unsigned char> grayscale_output(width * height * 4);
+    std::vector<unsigned char> output_data(width * height * 4); // RGBA format
 
     // Initialise average variables
     double total_execution_time = 0.0;
@@ -133,7 +120,8 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         // Start profiling execution time
         auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
 
-        controller.PerformCLImageGrayscaling(image_path, context, command_queue, kernel,
+        // TODO: Perform OpenCL Gaussian Blur
+        controller.PerformCLGaussianBlur(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_SIGMA, image_path, context, command_queue, kernel,
         &profiling_events, &input_data, &output_data,
         width, height, logger);
 
@@ -170,7 +158,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         }
     }
 
-    logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
+    logger.log("OpenCL Gaussian Blur conversion complete", Logger::LogLevel::INFO);
 
     // Calculate averages
     avg_opencl_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
@@ -179,27 +167,32 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     avg_opencl_kernel_read_time = total_read_time / NUMBER_OF_ITERATIONS;
     avg_opencl_kernel_operation = total_operation_time / NUMBER_OF_ITERATIONS;
 
-    for (size_t i = 0; i < (width * height * 4); i++) {
-        grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
-    }
-
-    return grayscale_output;
+    return output_data;
 }
 
-cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logger& logger){
-    
+cv::Mat PerformCPU(Controller& controller, std::string image_path, double& avg_cpu_execution_time, Logger& logger){
     std::ostringstream oss;
-    oss << "Performing CPU grayscaling on " << image_path << "...";
+    oss << "Performing CPU Gaussian Blur on " << image_path << "...";
     logger.log(oss.str(), Logger::LogLevel::INFO);
     
     // Initialise variables
-    cv::Mat input_image = cv::imread(image_path);
-    if(input_image.empty() || input_image.channels() != 3){
+    cv::Mat input_image = cv::imread(image_path, cv::IMREAD_UNCHANGED);
+    if(input_image.empty()){
         logger.log("Failed to read image", Logger::LogLevel::ERROR);
     }
 
+    // Convert image to RGBA format
+    cv::Mat rgba_image;
+    cv::cvtColor(input_image, rgba_image, cv::COLOR_BGR2RGBA);
+    if(rgba_image.channels() != 4)
+        logger.log("Image is not in RGBA!", Logger::LogLevel::ERROR);
+
+    // Get image dimensions
+    auto width = rgba_image.cols;
+    auto height = rgba_image.rows;
+
     // Initialise output image
-    auto output_image = cv::Mat(input_image.rows, input_image.cols, CV_8UC1);
+    cv::Mat output_image(height, width, CV_8UC4);
 
     // Initialise average variables
     double total_execution_time = 0.0;
@@ -208,30 +201,44 @@ cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logge
         // Loop through each pixel
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Process each pixel directly
-        for (int row = 0; row < input_image.rows; row++) {
-            // Pointers to the start of the row in input and output images
-            const uchar* input_row = input_image.ptr<uchar>(row);
-            uchar* output_row = output_image.ptr<uchar>(row);
+        auto kernel = controller.GenerateGaussianKernel(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_SIGMA);
+        int halfKernel = GAUSSIAN_KERNEL_SIZE / 2;
 
-            for (int col = 0; col < input_image.cols; col++) {
-                // Calculate the grayscale value using BGR components
-                int b = input_row[col * 3];
-                int g = input_row[col * 3 + 1];
-                int r = input_row[col * 3 + 2];
+        // Apply the Gaussian kernel
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                float sumR = 0.0f, sumG = 0.0f, sumB = 0.0f, sumA = 0.0f;
 
-                uchar gray_value = static_cast<uchar>(0.299 * r + 0.587 * g + 0.114 * b);
+                for (int ky = -halfKernel; ky <= halfKernel; ky++) {
+                    for (int kx = -halfKernel; kx <= halfKernel; kx++) {
+                        int neighborX = std::clamp(x + kx, 0, width - 1);
+                        int neighborY = std::clamp(y + ky, 0, height - 1);
 
-                // Assign the grayscale value to the output image
-                output_row[col] = gray_value;
+                        cv::Vec4b neighborPixel = rgba_image.at<cv::Vec4b>(neighborY, neighborX);
+                        float weight = kernel[(ky + halfKernel) * GAUSSIAN_KERNEL_SIZE + (kx + halfKernel)];
+
+                        sumR += neighborPixel[0] * weight;
+                        sumG += neighborPixel[1] * weight;
+                        sumB += neighborPixel[2] * weight;
+                        sumA += neighborPixel[3] * weight;
+                    }
+                }
+
+                // Assign blurred pixel values
+                output_image.at<cv::Vec4b>(y, x) = cv::Vec4b(
+                    static_cast<unsigned char>(std::clamp(sumR, 0.0f, 255.0f)),
+                    static_cast<unsigned char>(std::clamp(sumG, 0.0f, 255.0f)),
+                    static_cast<unsigned char>(std::clamp(sumB, 0.0f, 255.0f)),
+                    static_cast<unsigned char>(std::clamp(sumA, 0.0f, 255.0f))
+                );
             }
         }
-        auto end = std::chrono::high_resolution_clock::now();
 
+        auto end = std::chrono::high_resolution_clock::now();
         total_execution_time += std::chrono::duration<double, std::milli>(end - start).count();
     }
 
-    logger.log("CPU Grayscale conversion complete", Logger::LogLevel::INFO);
+    logger.log("CPU Gaussian Blur complete", Logger::LogLevel::INFO);
 
     // Calculate average
     avg_cpu_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
@@ -290,45 +297,9 @@ void PrintSummary(double& opencl_kernel_execution_time, double& opencl_kernel_wr
         std::cout << "\n **************************************** END OF CPU SUMMARY **************************************** " << std::endl;
 }
 
-double ComputeMAE(const cv::Mat& reference, const cv::Mat& result, Logger& logger){
-    if (result.size() != reference.size()) {
-        logger.log("Images have different sizes", Logger::LogLevel::ERROR);
-        return -1; // Return error code for size mismatch
-    }
-
-    cv::Mat refConverted, resConverted;
-
-    // If channel counts differ, normalize them to grayscale for comparison
-    if (result.channels() != reference.channels()) {
-        logger.log("Reference image has " + std::to_string(reference.channels()) + 
-                   " channels, while result image has " + std::to_string(result.channels()) + " channels", 
-                   Logger::LogLevel::INFO);
-
-        // Convert both images to grayscale for comparison
-        if (reference.channels() == 4) {
-            cv::cvtColor(reference, refConverted, cv::COLOR_BGR2GRAY);
-            logger.log("Converted reference image to grayscale", Logger::LogLevel::INFO);
-        } else {
-            refConverted = reference; // Already grayscale
-        }
-
-        if (result.channels() == 4) {
-            cv::cvtColor(result, resConverted, cv::COLOR_RGBA2GRAY);
-            logger.log("Converted result image to grayscale", Logger::LogLevel::INFO);
-        } else {
-            resConverted = result; // Already grayscale
-        }
-    } else {
-        // If channels are the same, no conversion is needed
-        refConverted = reference;
-        resConverted = result;
-    }
-
-    // Compute the absolute difference
+double ComputeMAE(const cv::Mat& reference, const cv::Mat& result){
     cv::Mat difference;
-    cv::absdiff(refConverted, resConverted, difference);
-
-    // Compute and return the mean absolute error (MAE)
+    cv::absdiff(reference, result, difference);
     return cv::mean(difference)[0];
 }
 
@@ -350,8 +321,9 @@ void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::
     file.close();
 }
 
-int main(int, char**){
-    std::cout << "Hello, from Grayscale application!\n";
+int main() {
+    std::cout << "Hello from GaussianBlur!" << std::endl;
+
     cv::ocl::setUseOpenCL(false);
 
     // Initialise (singleton) Logger
@@ -379,7 +351,7 @@ int main(int, char**){
 
     // Load the images
     auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
-    
+
     // Iterate through the images
     for(const auto& image_path: image_paths){
         // Initialise image variables
@@ -400,29 +372,20 @@ int main(int, char**){
         auto output_data = PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
             avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
             width, height, logger);
-
-        // Initialise output image
-        cv::Mat opencl_output_image;
-        auto image_support = controller.GetImageSupport();
-
-        // Initialize output image based on image support
-        if (image_support == CL_TRUE) {
-            opencl_output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
-        } else {
-            opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
-        }
-
-        // Save images
+        
+        cv::Mat opencl_output_image(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
+        cv::cvtColor(opencl_output_image, opencl_output_image, cv::COLOR_RGBA2BGR); // Convert to BGR for OpenCV
         SaveImages(image_path, opencl_output_image);
 
         // Perform OpenCL vs CPU comparison
         if(PERFORM_COMP){
-            cpu_output_image = PerformCPU(image_path, avg_cpu_execution_time, logger);
-            
+            cpu_output_image = PerformCPU(controller, image_path, avg_cpu_execution_time, logger);
+            cv::cvtColor(cpu_output_image, cpu_output_image, cv::COLOR_RGBA2BGR); // Convert to BGR for OpenCV
+
             // Calculate Mean Absolute Error and push into results vector
-            auto MAE = ComputeMAE(cpu_output_image, opencl_output_image, logger);
+            auto MAE = ComputeMAE(cpu_output_image, opencl_output_image);
             
-            // // Get timestamp
+            // Get timestamp
             auto timestamp = logger.getCurrentTime();
             
             // Get the resolution
@@ -448,8 +411,8 @@ int main(int, char**){
         }
 
         if(DISPLAY_IMAGES){
-            cv::imshow("OpenCL Grayscale window", opencl_output_image);
-            cv::imshow("CPU Grayscale window", cpu_output_image);
+            cv::imshow("OpenCL Gaussian Blur window", opencl_output_image);
+            cv::imshow("CPU Gaussian Blur window", cpu_output_image);
             cv::waitKey(0);
         }
     }
