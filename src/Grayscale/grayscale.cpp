@@ -21,6 +21,7 @@ bool LOG_EVENTS = false;
 
 std::string TEST_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
+std::string KERNEL_NAME = "grayscale_images.cl";
 
 void InitLogger(Logger& logger){
     // Set the log file
@@ -39,6 +40,8 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     for (auto && platform : platforms){
         controller.DisplayPlatformInformation(platform);
     }
+    // Initialise variable
+    std::string kernel_name = KERNEL_NAME;
 
     // Inform user of chosen indexes for platform and device
     std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
@@ -46,19 +49,30 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     // Get intended device
     auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
 
+    char device_name[256];
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
+    std::cout << "Device name: " << device_name << std::endl;
+
+    size_t maxWorkGroupSize;
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL);
+    printf("Max Work Group Size: %zu\n", maxWorkGroupSize);
+
     // Check device image support
     cl_bool image_support = CL_FALSE;
     clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
-    if (!image_support) {
-        std::cerr << "Device does not support images." << std::endl;
-        return;
+    if (image_support == CL_FALSE) {
+        kernel_name = "grayscale_base.cl";
+        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
+    }else{
+        std::cout << "Device supports images." << std::endl;
     }
+    controller.SetImageSupport(image_support);
 
     // Get OpenCL mandatory properties
     cl_int err_num = 0;
     *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
     *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
-    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], "grayscale.cl");
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], kernel_name.c_str());
     *kernel = controller.CreateKernel(*program, "grayscale");
 }
 
@@ -107,6 +121,8 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
 
     // Initialise output variables
     std::vector<float> output_data(width * height * 4);
+    
+    // Initialise output image (grayscale)
     std::vector<unsigned char> grayscale_output(width * height * 4);
 
     // Initialise average variables
@@ -191,16 +207,23 @@ cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logge
     for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
         // Loop through each pixel
         auto start = std::chrono::high_resolution_clock::now();
-        for(int row = 0; row < input_image.rows; row++){
-            for(int col = 0; col < input_image.cols; col++){
-                // Get the BGR values
-                cv::Vec3b bgr = input_image.at<cv::Vec3b>(row, col);
 
-                // Apply grayscale
-                uchar gray_value = static_cast<uchar>(0.299 * bgr[2] + 0.587 * bgr[1] + 0.114 * bgr[0]);
+        // Process each pixel directly
+        for (int row = 0; row < input_image.rows; row++) {
+            // Pointers to the start of the row in input and output images
+            const uchar* input_row = input_image.ptr<uchar>(row);
+            uchar* output_row = output_image.ptr<uchar>(row);
 
-                // Assign value
-                output_image.at<uchar>(row, col) = gray_value;
+            for (int col = 0; col < input_image.cols; col++) {
+                // Calculate the grayscale value using BGR components
+                int b = input_row[col * 3];
+                int g = input_row[col * 3 + 1];
+                int r = input_row[col * 3 + 2];
+
+                uchar gray_value = static_cast<uchar>(0.299 * r + 0.587 * g + 0.114 * b);
+
+                // Assign the grayscale value to the output image
+                output_row[col] = gray_value;
             }
         }
         auto end = std::chrono::high_resolution_clock::now();
@@ -267,9 +290,45 @@ void PrintSummary(double& opencl_kernel_execution_time, double& opencl_kernel_wr
         std::cout << "\n **************************************** END OF CPU SUMMARY **************************************** " << std::endl;
 }
 
-double ComputeMAE(const cv::Mat& reference, const cv::Mat& result){
+double ComputeMAE(const cv::Mat& reference, const cv::Mat& result, Logger& logger){
+    if (result.size() != reference.size()) {
+        logger.log("Images have different sizes", Logger::LogLevel::ERROR);
+        return -1; // Return error code for size mismatch
+    }
+
+    cv::Mat refConverted, resConverted;
+
+    // If channel counts differ, normalize them to grayscale for comparison
+    if (result.channels() != reference.channels()) {
+        logger.log("Reference image has " + std::to_string(reference.channels()) + 
+                   " channels, while result image has " + std::to_string(result.channels()) + " channels", 
+                   Logger::LogLevel::INFO);
+
+        // Convert both images to grayscale for comparison
+        if (reference.channels() == 4) {
+            cv::cvtColor(reference, refConverted, cv::COLOR_BGR2GRAY);
+            logger.log("Converted reference image to grayscale", Logger::LogLevel::INFO);
+        } else {
+            refConverted = reference; // Already grayscale
+        }
+
+        if (result.channels() == 4) {
+            cv::cvtColor(result, resConverted, cv::COLOR_RGBA2GRAY);
+            logger.log("Converted result image to grayscale", Logger::LogLevel::INFO);
+        } else {
+            resConverted = result; // Already grayscale
+        }
+    } else {
+        // If channels are the same, no conversion is needed
+        refConverted = reference;
+        resConverted = result;
+    }
+
+    // Compute the absolute difference
     cv::Mat difference;
-    cv::absdiff(reference, result, difference);
+    cv::absdiff(refConverted, resConverted, difference);
+
+    // Compute and return the mean absolute error (MAE)
     return cv::mean(difference)[0];
 }
 
@@ -341,8 +400,19 @@ int main(int, char**){
         auto output_data = PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
             avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
             width, height, logger);
-        
-        cv::Mat opencl_output_image(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
+
+        // Initialise output image
+        cv::Mat opencl_output_image;
+        auto image_support = controller.GetImageSupport();
+
+        // Initialize output image based on image support
+        if (image_support == CL_TRUE) {
+            opencl_output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
+        } else {
+            opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
+        }
+
+        // Save images
         SaveImages(image_path, opencl_output_image);
 
         // Perform OpenCL vs CPU comparison
@@ -350,9 +420,9 @@ int main(int, char**){
             cpu_output_image = PerformCPU(image_path, avg_cpu_execution_time, logger);
             
             // Calculate Mean Absolute Error and push into results vector
-            auto MAE = ComputeMAE(cpu_output_image, opencl_output_image);
+            auto MAE = ComputeMAE(cpu_output_image, opencl_output_image, logger);
             
-            // Get timestamp
+            // // Get timestamp
             auto timestamp = logger.getCurrentTime();
             
             // Get the resolution

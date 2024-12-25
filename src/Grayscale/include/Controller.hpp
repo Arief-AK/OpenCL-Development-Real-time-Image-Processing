@@ -5,6 +5,7 @@
 #include <sstream>
 #include <cstring>
 #include <vector>
+#include <utility>
 
 #include <InfoPlatform.hpp>
 #include <Logger.hpp>
@@ -18,6 +19,9 @@ public:
     
     std::vector<cl_platform_id> GetPlatforms();
     std::vector<cl_device_id> GetDevices(cl_platform_id platform);
+
+    cl_bool GetImageSupport();
+    void SetImageSupport(cl_bool image_support);
 
     cl_context CreateContext(cl_platform_id platform, std::vector<cl_device_id> devices);
     cl_command_queue CreateCommandQueue(cl_context context, cl_device_id device);
@@ -33,6 +37,10 @@ public:
 
 private:
     cl_uint num_platforms, num_devices;
+    cl_bool m_image_support;
+
+    std::pair<cl_mem, cl_mem> _initGrayscaleBuffers(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+    std::pair<cl_mem, cl_mem> _initGrayscleImage2D(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
 };
 
 #endif // CONTROLLER_H
