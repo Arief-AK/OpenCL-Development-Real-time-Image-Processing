@@ -110,12 +110,19 @@ cl_command_queue Controller::CreateCommandQueue(cl_context context, cl_device_id
 cl_program Controller::CreateProgram(cl_context context, cl_device_id device, const char *filename)
 {
     cl_int err_num;
-    cl_program program;
+    cl_program program;    
 
     // Open the kernel file
     std::ifstream kernelFile(filename, std::ios::in);
     if(!kernelFile.is_open()){
         std::cerr << "Failed to open file for reading: " << filename << std::endl;
+        if (errno == ENOENT) {
+            std::cerr << "Error: File does not exist." << std::endl;
+        } else if (errno == EACCES) {
+            std::cerr << "Error: Permission denied." << std::endl;
+        } else {
+            std::cerr << "Error: " << strerror(errno) << std::endl;
+        }
         return NULL;
     }
 

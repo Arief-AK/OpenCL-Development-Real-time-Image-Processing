@@ -8,7 +8,7 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 1
+#define DEVICE_INDEX 0
 
 int NUMBER_OF_ITERATIONS = 100;
 
@@ -207,16 +207,23 @@ cv::Mat PerformCPU(std::string image_path, double& avg_cpu_execution_time, Logge
     for(int i = 0; i < NUMBER_OF_ITERATIONS; i++){
         // Loop through each pixel
         auto start = std::chrono::high_resolution_clock::now();
-        for(int row = 0; row < input_image.rows; row++){
-            for(int col = 0; col < input_image.cols; col++){
-                // Get the BGR values
-                cv::Vec3b bgr = input_image.at<cv::Vec3b>(row, col);
 
-                // Apply grayscale
-                uchar gray_value = static_cast<uchar>(0.299 * bgr[2] + 0.587 * bgr[1] + 0.114 * bgr[0]);
+        // Process each pixel directly
+        for (int row = 0; row < input_image.rows; row++) {
+            // Pointers to the start of the row in input and output images
+            const uchar* input_row = input_image.ptr<uchar>(row);
+            uchar* output_row = output_image.ptr<uchar>(row);
 
-                // Assign value
-                output_image.at<uchar>(row, col) = gray_value;
+            for (int col = 0; col < input_image.cols; col++) {
+                // Calculate the grayscale value using BGR components
+                int b = input_row[col * 3];
+                int g = input_row[col * 3 + 1];
+                int r = input_row[col * 3 + 2];
+
+                uchar gray_value = static_cast<uchar>(0.299 * r + 0.587 * g + 0.114 * b);
+
+                // Assign the grayscale value to the output image
+                output_row[col] = gray_value;
             }
         }
         auto end = std::chrono::high_resolution_clock::now();
