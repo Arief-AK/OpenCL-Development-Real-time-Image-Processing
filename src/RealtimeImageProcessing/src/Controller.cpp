@@ -250,7 +250,7 @@ std::pair<cl_mem, cl_mem> Controller::_initGrayscleImage2D(cl_context *context, 
     return std::make_pair(input_image, output_image);
 }
 
-void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
+void Controller::PerformCLImageGrayscaling(cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
                                            std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<float> *output_data,
                                            cl_int &width, cl_int &height, Logger &logger){
     // Initialise error variable

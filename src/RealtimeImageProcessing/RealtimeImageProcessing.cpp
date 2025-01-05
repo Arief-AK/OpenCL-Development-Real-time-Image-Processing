@@ -1,9 +1,8 @@
 #include <chrono>
 #include <iomanip>
 #include <opencv2/core/ocl.hpp>
-#include <opencv2/opencv.hpp>
 
-#include <Controller.hpp>
+#include <ProgramHandler.hpp>
 #include <FileHandler.hpp>
 
 // CONSTANTS
@@ -14,7 +13,7 @@ int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = false;
+bool DISPLAY_IMAGES = true;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -143,7 +142,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
         switch (image_processing_method)
         {
         case 0:
-            controller.PerformCLImageGrayscaling(image_path, context, command_queue, kernel,
+            controller.PerformCLImageGrayscaling(context, command_queue, kernel,
                 &profiling_events, &input_data, &output_data,
                 width, height, logger);
             break;
@@ -378,8 +377,8 @@ void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::
 
 std::vector<uchar> ProcessFrameOpenCL(Controller& controller, const cv::Mat& input_frame, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel, cl_int width, cl_int height) {
     // Process frame using OpenCL grayscale
-    auto width = static_cast<cl_int>(input_frame.cols);
-    auto height = static_cast<cl_int>(input_frame.rows);
+    // auto width = static_cast<cl_int>(input_frame.cols);
+    // auto height = static_cast<cl_int>(input_frame.rows); 
     
     std::vector<unsigned char> input_data(input_frame.data, input_frame.data + input_frame.total() * 4); // RGBA data
     std::vector<float> output_data(width * height * 4); // Output buffer for grayscale
@@ -396,19 +395,11 @@ std::vector<uchar> ProcessFrameOpenCL(Controller& controller, const cv::Mat& inp
     return grayscale_output;
 }
 
-int main() {
-    std::cout << "Hello from RealtimeImage Module!" << std::endl;
-    cv::ocl::setUseOpenCL(false);
-
-    // Initialise (singleton) Logger
-    Logger& logger = Logger::getInstance();
-    InitLogger(logger);
-    logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
-    logger.log("Initialised logger", Logger::LogLevel::INFO);
-
+void PerformOnImages(Logger& logger){
     // Initialise controllers
     Controller controller;
     FileHandler file_handler;
+    auto program_handler = ProgramHandler(NUMBER_OF_ITERATIONS, LOG_EVENTS, DISPLAY_IMAGES);
 
     // Initialise OpenCL variables
     cl_context context;
@@ -416,6 +407,79 @@ int main() {
     cl_program program;
     cl_kernel kernel;
     cl_int err_num = 0;
+
+    // Initialise results vector
+    std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double, double>> comparison_results;
+
+    // Initialise OpenCL platforms and devices
+    InitOpenCL(controller, &context, &command_queue, &program, &kernel);
+
+    // Load the images
+    auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
+    
+    // Iterate through the images
+    for(const auto& image_path: image_paths){
+        // Initialise image variables
+        cl_int width, height;
+        
+        // Initialise comparison image
+        cv::Mat cpu_output_image;
+
+        // Initialise timing variables
+        double avg_opencl_execution_time = {};
+        double avg_opencl_kernel_write_time = {};
+        double avg_opencl_kernel_execution_time = {};
+        double avg_opencl_kernel_read_time = {};
+        double avg_opencl_kernel_operation_time = {};
+        double avg_cpu_execution_time = {};
+
+        // Perform OpenCL and get output data
+        auto output_data = program_handler.PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
+            avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
+            width, height, logger, "GRAYSCALE");
+
+        PrintEndToEndExecutionTime("OpenCL", avg_opencl_execution_time, logger);
+        PrintRawKernelExecutionTime(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time, logger);
+
+        // Initialise output image
+        cv::Mat opencl_output_image;
+        auto image_support = controller.GetImageSupport();
+
+        // Initialize output image based on image support
+        if (image_support == CL_TRUE) {
+            opencl_output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
+        } else {
+            opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
+        }
+
+        if(DISPLAY_IMAGES){
+            cv::imshow("OpenCL Grayscale window", opencl_output_image);
+            cv::waitKey(0);
+        }
+    }
+
+}
+
+void PerformOnCamera(Logger& logger){
+    // Initialise controllers
+    Controller controller;
+    FileHandler file_handler;
+    auto program_handler = ProgramHandler(NUMBER_OF_ITERATIONS, LOG_EVENTS, DISPLAY_IMAGES);
+
+    // Initialise OpenCL variables
+    cl_context context;
+    cl_command_queue command_queue;
+    cl_program program;
+    cl_kernel kernel;
+    cl_int err_num = 0;
+
+    // Initialise timing variables
+    double avg_opencl_execution_time = {};
+    double avg_opencl_kernel_write_time = {};
+    double avg_opencl_kernel_execution_time = {};
+    double avg_opencl_kernel_read_time = {};
+    double avg_opencl_kernel_operation_time = {};
+    double avg_cpu_execution_time = {};
 
     // Initialise OpenCL platforms and devices
     InitOpenCL(controller, &context, &command_queue, &program, &kernel);
@@ -426,7 +490,7 @@ int main() {
     cv::VideoCapture cap(pipeline, cv::CAP_GSTREAMER);
     if (!cap.isOpened()) {
         std::cerr << "Failed to open camera" << std::endl;
-        return -1;
+        exit(1);
     }
 
     // Get FPS
@@ -440,8 +504,12 @@ int main() {
         // Convert frame to RGBA
         cv::cvtColor(frame, frame, cv::COLOR_BGR2RGBA);
 
+        auto width = static_cast<cl_int>(frame.cols);
+        auto height = static_cast<cl_int>(frame.rows);
         
-        //std::vector<uchar> grayscale_output = PerformOpenCL
+        std::vector<uchar> grayscale_output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue,&kernel,
+            avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
+            width, height, logger, "GRAYSCALE");
 
         // Convert grayscale output to cv::Mat for display
         cv::Mat grayscale_image(height, width, CV_8UC1, grayscale_output.data());
@@ -456,5 +524,18 @@ int main() {
 
     cap.release();
     cv::destroyAllWindows();
+}
+
+int main() {
+    std::cout << "Hello from RealtimeImage Module!" << std::endl;
+    cv::ocl::setUseOpenCL(false);
+
+    // Initialise (singleton) Logger
+    Logger& logger = Logger::getInstance();
+    InitLogger(logger);
+    logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
+    logger.log("Initialised logger", Logger::LogLevel::INFO);
+
+    PerformOnImages(logger);
     return 0;
 }

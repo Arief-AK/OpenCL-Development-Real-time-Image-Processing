@@ -1,6 +1,7 @@
 # Set variables
 set(APPLICATION_NAME RealtimeImageProcessing)
 set(HEADERS
+    ../../include/ProgramHandler.hpp
     ../../include/Controller.hpp
     ../../include/InfoPlatform.hpp
     ../../include/FileHandler.hpp
@@ -58,9 +59,35 @@ add_executable(${APPLICATION_NAME} ${SOURCES} RealtimeImageProcessing.cpp)
 
 # Include the directory with kernel file
 target_include_directories(${APPLICATION_NAME} PRIVATE ../../include)
+target_include_directories(${APPLICATION_NAME} PRIVATE kernel)
 
 # Link the OpenCL and OpenCV library to the executable
 target_link_libraries(${APPLICATION_NAME} ${OS_LIB} ${OpenCV_LIBS})
+
+# Define the source images directory and the target images directory
+set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/images)
+message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})
+
+# Find all images in the source images directory
+file(GLOB IMAGE_FILES "${IMAGES_SOURCE_DIR}/*.*") # Match all files in the directory
+
+# Define the target image directory
+set(IMAGES_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/images)
+
+# Ensure the target directory is cleaned up
+if(EXISTS ${IMAGES_BINARY_DIR})
+    file(REMOVE_RECURSE ${IMAGES_BINARY_DIR})
+endif()
+
+# Make an empty directory
+file(MAKE_DIRECTORY ${IMAGES_BINARY_DIR})
+
+# Copy each image file to the target images directory
+foreach(IMAGE_FILE ${IMAGE_FILES})
+    get_filename_component(IMAGE_NAME ${IMAGE_FILE} NAME)
+    configure_file(${IMAGE_FILE} ${IMAGES_BINARY_DIR}/${IMAGE_NAME} COPYONLY)
+endforeach()
+message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
 
 # Move the kernel file(s) into the executable directory
 configure_file(kernel/grayscale_base.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/grayscale_base.cl COPYONLY)
