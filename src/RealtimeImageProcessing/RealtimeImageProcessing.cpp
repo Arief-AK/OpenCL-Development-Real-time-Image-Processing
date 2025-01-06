@@ -22,11 +22,11 @@ std::string TEST_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
 std::string KERNEL_NAME = "grayscale_images.cl";
 
-void InitLogger(Logger& logger){
+void InitLogger(Logger& logger, Logger::LogLevel level){
     // Set the log file
     try{
         logger.setLogFile("Grayscale.log");
-        logger.setLogLevel(Logger::LogLevel::ERROR);
+        logger.setLogLevel(level);
         logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
         logger.log("Initialised logger", Logger::LogLevel::INFO);
     }
@@ -490,6 +490,10 @@ void PerformOnCamera(Logger& logger){
     
     // Get FPS
     auto fps = cap.get(cv::CAP_PROP_FPS);
+
+    // Timer variables
+    auto last_toggle_time = std::chrono::high_resolution_clock::now();
+    bool is_grayscale = true;
     
     // Initialise frame
     cv::Mat frame;
@@ -502,21 +506,53 @@ void PerformOnCamera(Logger& logger){
         cv::cvtColor(frame, frame, cv::COLOR_BGR2RGBA);
         auto width = frame.cols;
         auto height = frame.rows;
-        
-        std::vector<uchar> grayscale_output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue,&kernel,
+        cv::resize(frame, frame, cv::Size(width, height));
+
+        // Check timer and toggle mode every 10 seconds
+        auto current_time = std::chrono::high_resolution_clock::now();
+        auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_toggle_time).count();
+        if (elapsed_time >= 10) {
+            is_grayscale = !is_grayscale; // Toggle mode
+            last_toggle_time = current_time; // Reset timer
+        }
+
+        if(is_grayscale){
+            std::vector<uchar> grayscale_output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue,&kernel,
             width, height, logger, "GRAYSCALE");
 
-        // Convert grayscale output to cv::Mat for display
-        cv::Mat grayscale_image(height, width, CV_8UC1, grayscale_output.data());
+            // Initialise output image
+            cv::Mat grayscale_image;
+            auto image_support = controller.GetImageSupport();
 
-        // Display the grayscaled frame
-        std::string fps_text = "FPS: " + std::to_string(static_cast<int>(fps));
-        cv::putText(grayscale_image, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255), 2);
+            // Initialize output image based on image support
+            if (image_support == CL_TRUE) {
+                grayscale_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(grayscale_output.data()));
+            } else {
+                grayscale_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(grayscale_output.data()));
+            }
 
-        cv::imshow("Grayscale Camera Feed", grayscale_image);
+            // Display the grayscaled frame
+            std::string fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Grayscale]";
+            cv::putText(grayscale_image, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255), 2);
+
+            cv::imshow("Camera Feed", grayscale_image);
+        } else {
+            // Display original frame
+            cv::Mat original_frame;
+            cv::cvtColor(frame, original_frame, cv::COLOR_RGBA2BGR);
+
+            // Overlay FPS
+            std::string fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Normal]";
+            cv::putText(original_frame, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
+
+            // Display normal frame
+            cv::imshow("Camera Feed", original_frame);
+        }
+
         if (cv::waitKey(1) == 27) break; // Exit on 'Esc' key
     }
 
+    // Cleanup
     cap.release();
     cv::destroyAllWindows();
     clReleaseKernel(kernel);
@@ -531,7 +567,7 @@ int main() {
 
     // Initialise (singleton) Logger
     Logger& logger = Logger::getInstance();
-    InitLogger(logger);
+    InitLogger(logger, Logger::LogLevel::INFO);
 
     PerformOnCamera(logger);
     return 0;

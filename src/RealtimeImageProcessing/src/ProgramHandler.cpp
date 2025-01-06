@@ -159,9 +159,8 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
 
     // Initialise output variables
     std::vector<float> output_data(width * height * 4);
-    
-    // Initialise output image (grayscale)
-    std::vector<unsigned char> grayscale_output(width * height * 4);
+
+    std::vector<unsigned char> real_output_data;
 
     // Find method
     if(method == "EDGE"){
@@ -170,36 +169,48 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
         image_processing_method = 2;
     }
 
+    // Initialise output image (grayscale)
+    std::vector<unsigned char> grayscale_output(width * height * 4);
+
+    // Start profiling execution time
+    auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
+
     // Switch the image processing method
     switch (image_processing_method)
     {
-    case 0:
-        logger.log("Performing OpenCL Grayscaling...", Logger::LogLevel::INFO);
-        controller.PerformCLImageGrayscaling(context, command_queue, kernel,
-            &profiling_events, &input_data, &output_data,
-            width, height, logger);
-        break;
-    
-    case 1:
-        logger.log("Performing OpenCL Edge Detection...", Logger::LogLevel::INFO);
-        break;
-    
-    case 2:
-        logger.log("Performing OpenCL Gaussian Blur...", Logger::LogLevel::INFO);
-        break;
+        case 0:
+            logger.log("Performing OpenCL Grayscaling...", Logger::LogLevel::INFO);
+            controller.PerformCLImageGrayscaling(context, command_queue, kernel,
+                &profiling_events, &input_data, &output_data,
+                width, height, logger);
+            
+            for (size_t i = 0; i < (width * height * 4); i++) {
+                grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
+            }
 
-    default:
-        logger.log("Unrecognised image processing method", Logger::LogLevel::ERROR);
-        break;
+            logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
+            real_output_data = grayscale_output;
+            break;
+        
+        case 1:
+            logger.log("Performing OpenCL Edge Detection...", Logger::LogLevel::INFO);
+            logger.log("OpenCL Edge Detection complete", Logger::LogLevel::INFO);
+            break;
+        
+        case 2:
+            logger.log("Performing OpenCL Gaussian Blur...", Logger::LogLevel::INFO);
+            logger.log("OpenCL Gaussian Blur complete", Logger::LogLevel::INFO);
+            break;
+
+        default:
+            logger.log("Unrecognised image processing method", Logger::LogLevel::ERROR);
+            break;
     }
 
     // End profiling execution time
     auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
-    logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
+    auto total_execution_time = std::chrono::duration<double, std::milli>(opencl_execution_time_end - opencl_execution_time_start).count();
+    logger.log("OpenCL " +  method + " execution time: " + std::to_string(total_execution_time) + " ms", Logger::LogLevel::INFO);
 
-    for (size_t i = 0; i < (width * height); i++) {
-        grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
-    }
-
-    return grayscale_output;
+    return real_output_data;
 }
