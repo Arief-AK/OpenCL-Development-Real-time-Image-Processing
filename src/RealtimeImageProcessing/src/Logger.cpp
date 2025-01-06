@@ -62,12 +62,19 @@ void Logger::log(const std::string &message, LogLevel level)
     std::string level_str = _printLogLevel(level);
     std::string log_message = "[" + timestamp + "]" + "[" + level_str + "] " + message;
 
-    // Print to terminal
-    if(m_print_terminal)
-        std::cout << log_message << std::endl;
+    if(m_set_level == level){
+        // Print to terminal
+        if(m_print_terminal)
+            std::cout << log_message << std::endl;
+    }
 
     if(m_log_file.is_open()){
         m_log_file << log_message << std::endl;
     }
+}
+
+void Logger::setLogLevel(LogLevel level)
+{
+    m_set_level = level;
 }
 

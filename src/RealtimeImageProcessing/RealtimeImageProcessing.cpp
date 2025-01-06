@@ -7,13 +7,13 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 0
+#define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = true;
+bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -25,7 +25,10 @@ std::string KERNEL_NAME = "grayscale_images.cl";
 void InitLogger(Logger& logger){
     // Set the log file
     try{
-       logger.setLogFile("Grayscale.log");
+        logger.setLogFile("Grayscale.log");
+        logger.setLogLevel(Logger::LogLevel::ERROR);
+        logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
+        logger.log("Initialised logger", Logger::LogLevel::INFO);
     }
     catch(const std::exception& e)
     {
@@ -473,28 +476,19 @@ void PerformOnCamera(Logger& logger){
     cl_kernel kernel;
     cl_int err_num = 0;
 
-    // Initialise timing variables
-    double avg_opencl_execution_time = {};
-    double avg_opencl_kernel_write_time = {};
-    double avg_opencl_kernel_execution_time = {};
-    double avg_opencl_kernel_read_time = {};
-    double avg_opencl_kernel_operation_time = {};
-    double avg_cpu_execution_time = {};
-
     // Initialise OpenCL platforms and devices
     InitOpenCL(controller, &context, &command_queue, &program, &kernel);
 
     // Camera pipeline
-    std::string pipeline = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1920, height=1080, format=(string)NV12, framerate=(fraction)30/1 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink";
+    std::string pipeline = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1024, height=768, format=(string)NV12, framerate=(fraction)30/1 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink";
 
     cv::VideoCapture cap(pipeline, cv::CAP_GSTREAMER);
     if (!cap.isOpened()) {
         std::cerr << "Failed to open camera" << std::endl;
         exit(1);
     }
-
-    // Get FPS
-    auto fps = cap.get(cv::CAP_PROP_FPS);
+    
+    // Initialise frame
     cv::Mat frame;
 
     while (true) {
@@ -503,16 +497,17 @@ void PerformOnCamera(Logger& logger){
 
         // Convert frame to RGBA
         cv::cvtColor(frame, frame, cv::COLOR_BGR2RGBA);
-
-        auto width = static_cast<cl_int>(frame.cols);
-        auto height = static_cast<cl_int>(frame.rows);
+        auto width = frame.cols;
+        auto height = frame.rows;
         
         std::vector<uchar> grayscale_output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue,&kernel,
-            avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
             width, height, logger, "GRAYSCALE");
 
         // Convert grayscale output to cv::Mat for display
         cv::Mat grayscale_image(height, width, CV_8UC1, grayscale_output.data());
+
+        // Get FPS
+        auto fps = cap.get(cv::CAP_PROP_FPS);
 
         // Display the grayscaled frame
         std::string fps_text = "FPS: " + std::to_string(static_cast<int>(fps));
@@ -533,9 +528,7 @@ int main() {
     // Initialise (singleton) Logger
     Logger& logger = Logger::getInstance();
     InitLogger(logger);
-    logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
-    logger.log("Initialised logger", Logger::LogLevel::INFO);
 
-    PerformOnImages(logger);
+    PerformOnCamera(logger);
     return 0;
 }
