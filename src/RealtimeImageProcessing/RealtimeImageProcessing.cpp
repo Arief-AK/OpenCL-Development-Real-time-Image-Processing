@@ -488,6 +488,9 @@ void PerformOnCamera(Logger& logger){
         exit(1);
     }
     
+    // Get FPS
+    auto fps = cap.get(cv::CAP_PROP_FPS);
+    
     // Initialise frame
     cv::Mat frame;
 
@@ -506,9 +509,6 @@ void PerformOnCamera(Logger& logger){
         // Convert grayscale output to cv::Mat for display
         cv::Mat grayscale_image(height, width, CV_8UC1, grayscale_output.data());
 
-        // Get FPS
-        auto fps = cap.get(cv::CAP_PROP_FPS);
-
         // Display the grayscaled frame
         std::string fps_text = "FPS: " + std::to_string(static_cast<int>(fps));
         cv::putText(grayscale_image, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255), 2);
@@ -519,6 +519,10 @@ void PerformOnCamera(Logger& logger){
 
     cap.release();
     cv::destroyAllWindows();
+    clReleaseKernel(kernel);
+    clReleaseProgram(program);
+    clReleaseCommandQueue(command_queue);
+    clReleaseContext(context);
 }
 
 int main() {

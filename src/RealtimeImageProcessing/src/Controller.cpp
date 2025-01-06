@@ -340,4 +340,9 @@ void Controller::PerformCLImageGrayscaling(cl_context *context, cl_command_queue
     clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_event_end, NULL);
     profiling_events->push_back(read_event_start);
     profiling_events->push_back(read_event_end);
+
+    clReleaseMemObject(buffers.first);
+    clReleaseMemObject(buffers.second);
+    clReleaseEvent(kernel_event);
+
 }

@@ -148,14 +148,14 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
 {
     auto image_processing_method = 0;
 
-    // Initialise image variables
-    std::vector<unsigned char> input_data;
+    // Assert frame dimensions
+    assert(input_frame.cols == width && input_frame.rows == height);
 
     // Initialise profiling variables
     std::vector<cl_ulong> profiling_events;
 
-    // Get matrix
-    GetMatrix(input_frame, &input_data, &width, &height, logger);
+    // RGBA input data
+    std::vector<unsigned char> input_data(input_frame.data, input_frame.data + input_frame.total() * 4);
 
     // Initialise output variables
     std::vector<float> output_data(width * height * 4);
@@ -197,7 +197,7 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
     auto opencl_execution_time_end = std::chrono::high_resolution_clock::now();
     logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
 
-    for (size_t i = 0; i < (width * height * 4); i++) {
+    for (size_t i = 0; i < (width * height); i++) {
         grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
     }
 
