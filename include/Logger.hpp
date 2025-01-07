@@ -30,10 +30,10 @@ public:
     void setTerminalDisplay(bool print_on_terminal);
     void log(const std::string& message, LogLevel level);
 
-    void PrintEndToEndExecutionTime(std::string method, double total_execution_time_ms, Logger& logger);
-    void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_kernel_operation_time, Logger& logger);
+    void PrintEndToEndExecutionTime(std::string method, double total_execution_time_ms);
+    void PrintRawKernelExecutionTime(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_kernel_operation_time);
     void PrintSummary(double& opencl_kernel_execution_time, double& opencl_kernel_write_time, double& opencl_kernel_read_time, double& opencl_execution_time, double& opencl_kernel_operation_time,
-    double& cpu_execution_time, Logger& logger);
+    double& cpu_execution_time);
 
 private:
     std::ofstream m_log_file;

@@ -1,6 +1,69 @@
 #include "ProgramHandler.hpp"
 
-ProgramHandler::ProgramHandler(int number_of_iterations, bool log_events, bool display_images): NUMBER_OF_ITERATIONS{number_of_iterations}, LOG_EVENTS{log_events}, DISPLAY_IMAGES{display_images} {}
+ProgramHandler::ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results): NUMBER_OF_ITERATIONS{number_of_iterations}, LOG_EVENTS{log_events}, DISPLAY_IMAGES{display_images}, DISPLAY_TERMINAL_RESULTS{display_terminal_results} {}
+
+void ProgramHandler::InitLogger(Logger &logger, Logger::LogLevel level)
+{
+    // Set the log file
+    try{
+        logger.setLogFile("Grayscale.log");
+        logger.setLogLevel(level);
+        logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
+        logger.log("Initialised logger", Logger::LogLevel::INFO);
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << "Error setting log file: " << e.what() << std::endl;
+    }
+}
+
+void ProgramHandler::SetKernelProperties(std::string kernel_name, int platform_index, int device_index)
+{
+    KERNEL_NAME = kernel_name;
+    PLATFORM_INDEX = platform_index;
+    DEVICE_INDEX = device_index;
+}
+
+void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_command_queue *command_queue, cl_program *program, cl_kernel *kernel)
+{
+    // Get OpenCL platforms
+    auto platforms = controller.GetPlatforms();
+    for (auto && platform : platforms){
+        controller.DisplayPlatformInformation(platform);
+    }
+
+    // Inform user of chosen indexes for platform and device
+    std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
+
+    // Get intended device
+    auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
+
+    char device_name[256];
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
+    std::cout << "Device name: " << device_name << std::endl;
+
+    size_t maxWorkGroupSize;
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL);
+    printf("Max Work Group Size: %zu\n", maxWorkGroupSize);
+
+    // Check device image support
+    cl_bool image_support = CL_FALSE;
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
+    if (image_support == CL_FALSE) {
+        KERNEL_NAME = "grayscale_base.cl";
+        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
+    }else{
+        std::cout << "Device supports images." << std::endl;
+    }
+    controller.SetImageSupport(image_support);
+
+    // Get OpenCL mandatory properties
+    cl_int err_num = 0;
+    *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
+    *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], KERNEL_NAME.c_str());
+    *kernel = controller.CreateKernel(*program, "grayscale");
+}
 
 void ProgramHandler::GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_data, cl_int *width, cl_int *height, Logger &logger)
 {

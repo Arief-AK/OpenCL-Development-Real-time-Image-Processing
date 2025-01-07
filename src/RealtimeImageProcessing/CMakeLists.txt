@@ -2,6 +2,7 @@
 set(APPLICATION_NAME RealtimeImageProcessing)
 set(HEADERS
     ../../include/ProgramHandler.hpp
+    ../../include/Comparator.hpp
     ../../include/Controller.hpp
     ../../include/InfoPlatform.hpp
     ../../include/FileHandler.hpp

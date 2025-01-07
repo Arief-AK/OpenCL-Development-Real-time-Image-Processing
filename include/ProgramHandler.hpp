@@ -6,7 +6,12 @@
 class ProgramHandler
 {
 public:
-    ProgramHandler(int number_of_iterations, bool log_events, bool display_images);
+    ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results);
+
+    void InitLogger(Logger& logger, Logger::LogLevel level);
+    void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* command_queue, cl_program* program, cl_kernel* kernel);
+
+    void SetKernelProperties(std::string kernel_name, int platform_index, int device_index);
 
     std::vector<unsigned char> PerformOpenCL(Controller& controller, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
     double& avg_opencl_execution_time, double& avg_opencl_kernel_write_time, double& avg_opencl_kernel_execution_time, double& avg_opencl_kernel_read_time,
@@ -18,8 +23,13 @@ public:
 private:
     bool LOG_EVENTS;
     bool DISPLAY_IMAGES;
+    bool DISPLAY_TERMINAL_RESULTS;
 
     int NUMBER_OF_ITERATIONS;
+    int PLATFORM_INDEX;
+    int DEVICE_INDEX;
+
+    std::string KERNEL_NAME;
 
     void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_data,
     cl_int* width, cl_int* height, Logger& logger);
