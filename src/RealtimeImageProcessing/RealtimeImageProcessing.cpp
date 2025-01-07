@@ -8,13 +8,13 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 0
+#define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = true;
+bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -41,11 +41,6 @@ void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
 
     // Initialise output vector
     std::vector<unsigned char> output_data;
-
-    // Initialise OpenCL platforms and devices
-    program_handler.AddKernels(GRAYSCALE_KERNELS, "GRAYSCALE");
-    program_handler.AddKernels(GAUSSIAN_KERNELS, "GAUSSIAN");
-    program_handler.SetDeviceProperties(PLATFORM_INDEX, DEVICE_INDEX);
 
     // Load the images
     auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
@@ -142,10 +137,6 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
     cl_kernel kernel;
     cl_int err_num = 0;
 
-    // Initialise OpenCL platforms and devices
-    program_handler.SetDeviceProperties(PLATFORM_INDEX, DEVICE_INDEX);
-    program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GRAYSCALE");
-
     // Camera pipeline
     std::string pipeline = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1024, height=768, format=(string)NV12, framerate=(fraction)30/1 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink";
 
@@ -160,10 +151,19 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
 
     // Timer variables
     auto last_toggle_time = std::chrono::high_resolution_clock::now();
-    bool is_grayscale = true;
+    auto image_processing_method = 0;
     
-    // Initialise frame
+    // Initialise frame and output variables
     cv::Mat frame;
+    cv::Mat output_image;
+    std::vector<uchar> output;
+
+    std::string fps_text;
+
+    bool kernel_initialised = false;
+
+    // Initialise output image
+    auto image_support = controller.GetImageSupport();
 
     while (true) {
         cap >> frame;
@@ -179,42 +179,73 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
         auto current_time = std::chrono::high_resolution_clock::now();
         auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_toggle_time).count();
         if (elapsed_time >= 10) {
-            is_grayscale = !is_grayscale; // Toggle mode
+            image_processing_method += 1;
+            if(image_processing_method == 3){
+                image_processing_method = 0;
+                kernel_initialised = false;
+            }
             last_toggle_time = current_time; // Reset timer
         }
 
-        if(is_grayscale){
-            std::vector<uchar> grayscale_output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue,&kernel,
+        switch (image_processing_method)
+        {
+        case 0:
+            // Perform Gaussian
+            if(!kernel_initialised){
+                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GAUSSIAN");
+                kernel_initialised = true;
+            }
+            
+            output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue, &kernel,
+            width, height, logger, "GAUSSIAN");
+
+            fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Gaussian]";
+            output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output.data()));
+            cv::cvtColor(output_image, output_image, cv::COLOR_RGBA2BGR);
+            break;
+
+        case 1:
+            // Normal
+            cv::cvtColor(frame, output_image, cv::COLOR_RGBA2BGR);
+            fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Normal]";
+            kernel_initialised = false;
+            break;
+
+        case 2:
+            // Perform grayscaling
+            if(!kernel_initialised){
+                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GRAYSCALE");
+                kernel_initialised = true;
+            }
+            
+            output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue,&kernel,
             width, height, logger, "GRAYSCALE");
 
-            // Initialise output image
-            cv::Mat grayscale_image;
-            auto image_support = controller.GetImageSupport();
+            fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Grayscale]";
 
             // Initialize output image based on image support
-            if (image_support == CL_TRUE) {
-                grayscale_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(grayscale_output.data()));
-            } else {
-                grayscale_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(grayscale_output.data()));
+            switch (image_support)
+            {
+            case CL_TRUE:
+                output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output.data()));
+                break;
+
+            case CL_FALSE:
+                output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output.data()));
+                break;
+            
+            default:
+                break;
             }
-
-            // Display the grayscaled frame
-            std::string fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Grayscale]";
-            cv::putText(grayscale_image, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255), 2);
-
-            cv::imshow("Camera Feed", grayscale_image);
-        } else {
-            // Display original frame
-            cv::Mat original_frame;
-            cv::cvtColor(frame, original_frame, cv::COLOR_RGBA2BGR);
-
-            // Overlay FPS
-            std::string fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Normal]";
-            cv::putText(original_frame, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
-
-            // Display normal frame
-            cv::imshow("Camera Feed", original_frame);
+            break;
+        
+        default:
+            break;
         }
+
+        // Display the output frame
+        cv::putText(output_image, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255), 2);
+        cv::imshow("Camera Feed", output_image);
 
         if (cv::waitKey(1) == 27) break; // Exit on 'Esc' key
     }
@@ -237,7 +268,12 @@ int main() {
     auto program_handler = ProgramHandler(NUMBER_OF_ITERATIONS, LOG_EVENTS, DISPLAY_IMAGES, DISPLAY_TERMINAL_RESULTS);
     program_handler.InitLogger(logger, Logger::LogLevel::INFO);
 
-    //PerformOnCamera(program_handler, logger);
-    PerformOnImages(program_handler, logger);
+    // Initialise OpenCL platforms and devices
+    program_handler.SetDeviceProperties(PLATFORM_INDEX, DEVICE_INDEX);
+    program_handler.AddKernels(GRAYSCALE_KERNELS, "GRAYSCALE");
+    program_handler.AddKernels(GAUSSIAN_KERNELS, "GAUSSIAN");
+
+    PerformOnCamera(program_handler, logger);
+    //PerformOnImages(program_handler, logger);
     return 0;
 }
