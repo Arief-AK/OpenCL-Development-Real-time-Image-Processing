@@ -14,7 +14,7 @@ int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = false;
+bool DISPLAY_IMAGES = true;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -22,24 +22,6 @@ bool LOG_EVENTS = false;
 std::string TEST_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
 std::string KERNEL_NAME = "grayscale_images.cl";
-
-void SaveImages(std::string image_path, cv::Mat& opencl_output_image){
-    if(SAVE_IMAGES){
-        // Convert output data to OpenCV matrix
-        auto new_image_path = "images/opencl_grayscale_" + std::filesystem::path(image_path).filename().string();
-        cv::imwrite(new_image_path, opencl_output_image);
-    }
-}
-
-void WriteResultsToCSV(const std::string& filename, std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double, double>>& results){
-    std::ofstream file(filename);
-    file << "Timestamp, Image, Resolution, Num_Iterations, avg_CPU_Time_ms, avg_OpenCL_Time_ms, avg_OpenCL_kernel_ms, avg_OpenCL_kernel_write_ms, avg_OpenCL_kernel_read_ms, avg_OpenCL_kernel_operation_ms, Error_MAE\n";
-    for (const auto& [timestamp, image, resolution, num_iterations, avg_cpu_time, avg_opencl_time, avg_opencl_kernel_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time, mae] : results) {
-        file << timestamp << ", " << image << ", " << resolution << ", " << num_iterations << ", " << avg_cpu_time << ", " << avg_opencl_time << ", " << avg_opencl_kernel_time << ", "
-        << avg_opencl_kernel_write_time << ", " << avg_opencl_kernel_read_time << ", " << avg_opencl_kernel_operation_time << ", " << mae << "\n";
-    }
-    file.close();
-}
 
 void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
     // Initialise controllers

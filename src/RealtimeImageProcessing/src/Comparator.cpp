@@ -4,6 +4,8 @@ Comparator::Comparator(int num_methods, int num_iterations): m_num_methods{num_m
 
 cv::Mat Comparator::PerformCPU_Grayscaling(std::string image_path, double &avg_cpu_execution_time, Logger &logger)
 {
+    cv::ocl::setUseOpenCL(false);
+    
     std::ostringstream oss;
     oss << "Performing CPU grayscaling on " << image_path << "...";
     logger.log(oss.str(), Logger::LogLevel::INFO);
