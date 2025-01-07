@@ -21,7 +21,11 @@ bool LOG_EVENTS = false;
 
 std::string TEST_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
-std::string KERNEL_NAME = "grayscale_images.cl";
+
+std::vector<std::string> METHOD = {"GRAYSCALE", "GAUSSIAN"};
+
+std::vector<std::string> GRAYSCALE_KERNELS = {"grayscale_images.cl", "grayscale_base.cl"};
+std::vector<std::string> GAUSSIAN_KERNELS = {"gaussian_images.cl", "gaussian_base.cl"};
 
 void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
     // Initialise controllers
@@ -35,54 +39,92 @@ void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
     cl_kernel kernel;
     cl_int err_num = 0;
 
-    // Initialise results vector
-    std::vector<std::tuple<std::string, std::string, std::string, int, double, double, double, double, double, double, double>> comparison_results;
+    // Initialise output vector
+    std::vector<unsigned char> output_data;
 
     // Initialise OpenCL platforms and devices
-    program_handler.SetKernelProperties(KERNEL_NAME, PLATFORM_INDEX, DEVICE_INDEX);
-    program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel);
+    program_handler.AddKernels(GRAYSCALE_KERNELS, "GRAYSCALE");
+    program_handler.AddKernels(GAUSSIAN_KERNELS, "GAUSSIAN");
+    program_handler.SetDeviceProperties(PLATFORM_INDEX, DEVICE_INDEX);
 
     // Load the images
     auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
     
-    // Iterate through the images
-    for(const auto& image_path: image_paths){
-        // Initialise image variables
-        cl_int width, height;
-        
-        // Initialise comparison image
-        cv::Mat cpu_output_image;
+    auto image_processing_method = 0;
+    for (const auto& image_method : METHOD){
+        // Initalise for each method
+        program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, image_method);
 
-        // Initialise timing variables
-        double avg_opencl_execution_time = {};
-        double avg_opencl_kernel_write_time = {};
-        double avg_opencl_kernel_execution_time = {};
-        double avg_opencl_kernel_read_time = {};
-        double avg_opencl_kernel_operation_time = {};
-        double avg_cpu_execution_time = {};
+        // Iterate through the images
+        for(const auto& image_path: image_paths){
+            // Initialise image variables
+            cl_int width, height;
 
-        // Perform OpenCL and get output data
-        auto output_data = program_handler.PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
-            avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
-            width, height, logger, "GRAYSCALE");
+            // Find method
+            if(image_method == "EDGE"){
+                image_processing_method = 1;
+            } else if(image_method == "GAUSSIAN"){
+                image_processing_method = 2;
+            }
 
-        logger.PrintEndToEndExecutionTime("OpenCL", avg_opencl_execution_time);
-        logger.PrintRawKernelExecutionTime(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time);
+            // Initialise timing variables
+            double avg_opencl_execution_time = {};
+            double avg_opencl_kernel_write_time = {};
+            double avg_opencl_kernel_execution_time = {};
+            double avg_opencl_kernel_read_time = {};
+            double avg_opencl_kernel_operation_time = {};
+            double avg_cpu_execution_time = {};
 
-        // Initialise output image
-        cv::Mat opencl_output_image;
-        auto image_support = controller.GetImageSupport();
+            // Perform OpenCL and get output data
+            switch (image_processing_method)
+            {
+            case 0:
+                output_data = program_handler.PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
+                avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
+                width, height, logger, "GRAYSCALE");
+                break;
 
-        // Initialize output image based on image support
-        if (image_support == CL_TRUE) {
-            opencl_output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
-        } else {
-            opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
-        }
+            case 2:
+                output_data = program_handler.PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
+                avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
+                width, height, logger, "GAUSSIAN");
+                break;
+            
+            default:
+                break;
+            }
 
-        if(DISPLAY_IMAGES){
-            cv::imshow("OpenCL Grayscale window", opencl_output_image);
-            cv::waitKey(0);
+            logger.PrintEndToEndExecutionTime("OpenCL", avg_opencl_execution_time);
+            logger.PrintRawKernelExecutionTime(avg_opencl_kernel_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time);
+
+            // Initialise output image
+            cv::Mat opencl_output_image;
+            auto image_support = controller.GetImageSupport();
+
+            // Initialize output image based on image support
+            switch (image_processing_method)
+            {
+            case 0:
+                if (image_support == CL_TRUE) {
+                    opencl_output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
+                } else {
+                    opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
+                }   
+                break;
+
+            case 2:
+                opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
+                cv::cvtColor(opencl_output_image, opencl_output_image, cv::COLOR_RGBA2BGR);
+                break;
+            
+            default:
+                break;
+            }
+
+            if(DISPLAY_IMAGES){
+                cv::imshow("OpenCL " + image_method + " window", opencl_output_image);
+                cv::waitKey(0);
+            }
         }
     }
 
@@ -101,8 +143,8 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
     cl_int err_num = 0;
 
     // Initialise OpenCL platforms and devices
-    program_handler.SetKernelProperties(KERNEL_NAME, PLATFORM_INDEX, DEVICE_INDEX);
-    program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel);
+    program_handler.SetDeviceProperties(PLATFORM_INDEX, DEVICE_INDEX);
+    program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GRAYSCALE");
 
     // Camera pipeline
     std::string pipeline = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1024, height=768, format=(string)NV12, framerate=(fraction)30/1 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink";

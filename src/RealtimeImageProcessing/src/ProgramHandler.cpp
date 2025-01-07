@@ -1,12 +1,15 @@
 #include "ProgramHandler.hpp"
 
-ProgramHandler::ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results): NUMBER_OF_ITERATIONS{number_of_iterations}, LOG_EVENTS{log_events}, DISPLAY_IMAGES{display_images}, DISPLAY_TERMINAL_RESULTS{display_terminal_results} {}
+ProgramHandler::ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results): NUMBER_OF_ITERATIONS{number_of_iterations}, LOG_EVENTS{log_events}, DISPLAY_IMAGES{display_images}, DISPLAY_TERMINAL_RESULTS{display_terminal_results}
+{
+     METHOD = {"GRAYSCALE", "GAUSSIAN"};
+}
 
 void ProgramHandler::InitLogger(Logger &logger, Logger::LogLevel level)
 {
     // Set the log file
     try{
-        logger.setLogFile("Grayscale.log");
+        logger.setLogFile("RealtimeImageProcessing.log");
         logger.setLogLevel(level);
         logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
         logger.log("Initialised logger", Logger::LogLevel::INFO);
@@ -17,20 +20,29 @@ void ProgramHandler::InitLogger(Logger &logger, Logger::LogLevel level)
     }
 }
 
-void ProgramHandler::SetKernelProperties(std::string kernel_name, int platform_index, int device_index)
+void ProgramHandler::AddKernels(std::vector<std::string> kernels, std::string kernel_index)
 {
-    KERNEL_NAME = kernel_name;
+    KERNELS.insert({kernel_index, kernels});
+}
+
+void ProgramHandler::SetDeviceProperties(int platform_index, int device_index)
+{
     PLATFORM_INDEX = platform_index;
     DEVICE_INDEX = device_index;
 }
 
-void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_command_queue *command_queue, cl_program *program, cl_kernel *kernel)
+void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_command_queue *command_queue, cl_program *program, cl_kernel *kernel, std::string method)
 {
     // Get OpenCL platforms
     auto platforms = controller.GetPlatforms();
     for (auto && platform : platforms){
         controller.DisplayPlatformInformation(platform);
     }
+
+    // Initialise variables
+    auto image_processing_method = 0;
+    std::string kernel_file;
+    std::string kernel_name;
 
     // Inform user of chosen indexes for platform and device
     std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
@@ -46,14 +58,36 @@ void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_
     clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL);
     printf("Max Work Group Size: %zu\n", maxWorkGroupSize);
 
+    // Find method
+    if(method == "GRAYSCALE"){
+        kernel_name = "grayscale";
+    } else if(method == "EDGE"){
+        kernel_name = "edge";
+    } else if(method == "GAUSSIAN"){
+        kernel_name = "gaussian_blur";
+    } else{
+        std::cerr << "Unrecognised method" << std::endl;
+        exit(1);
+    }
+
     // Check device image support
     cl_bool image_support = CL_FALSE;
     clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
-    if (image_support == CL_FALSE) {
-        KERNEL_NAME = "grayscale_base.cl";
-        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
-    }else{
+
+    switch (image_support)
+    {
+    case CL_TRUE:
+        kernel_file = KERNELS[method][0];
         std::cout << "Device supports images." << std::endl;
+        break;
+
+    case CL_FALSE:
+        kernel_file = KERNELS[method][1];
+        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
+        break;
+    
+    default:
+        break;
     }
     controller.SetImageSupport(image_support);
 
@@ -61,8 +95,8 @@ void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_
     cl_int err_num = 0;
     *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
     *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
-    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], KERNEL_NAME.c_str());
-    *kernel = controller.CreateKernel(*program, "grayscale");
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], kernel_file.c_str());
+    *kernel = controller.CreateKernel(*program, kernel_name.c_str());
 }
 
 void ProgramHandler::GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_data, cl_int *width, cl_int *height, Logger &logger)
@@ -113,10 +147,14 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
     GetImageOpenCL(image_path, &input_data, &width, &height, logger);
 
     // Initialise output variables
-    std::vector<float> output_data(width * height * 4);
+    std::vector<float> grayscale_output_data;
+
+    // TEMP: GAUSSIAN BLUR
+    auto gaussian_kernel_size = 5;
+    auto gaussian_sigma = 1.5f;
     
-    // Initialise output image (grayscale)
-    std::vector<unsigned char> grayscale_output(width * height * 4);
+    // Initialise function output variable
+    std::vector<unsigned char> function_output;
 
     // Initialise average variables
     double total_execution_time = 0.0;
@@ -133,19 +171,29 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
         // Start profiling execution time
         auto opencl_execution_time_start = std::chrono::high_resolution_clock::now();
 
-        // Swicth the image processing method
+        // Switch the image processing method
         switch (image_processing_method)
         {
         case 0:
+            grayscale_output_data = std::vector<float>(width * height * 4);
             controller.PerformCLImageGrayscaling(context, command_queue, kernel,
-                &profiling_events, &input_data, &output_data,
+                &profiling_events, &input_data, &grayscale_output_data,
                 width, height, logger);
+
+            function_output = std::vector<unsigned char>(width * height * 4);
+            for (size_t i = 0; i < (width * height * 4); i++) {
+                function_output[i] = static_cast<unsigned char>(grayscale_output_data[i] * 255.0f); // Extract and scale grayscale
+            }
             break;
         
         case 1:
             break;
         
         case 2:
+            function_output = std::vector<unsigned char>(width * height * 4);
+            controller.PerformCLGaussianBlur(gaussian_kernel_size, gaussian_sigma, context, command_queue, kernel,
+                &profiling_events, &input_data, &function_output,
+                width, height, logger);
             break;
 
         default:
@@ -190,7 +238,7 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
         }
     }
 
-    logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
+    logger.log("OpenCL " + method + " conversion complete", Logger::LogLevel::INFO);
 
     // Calculate averages
     avg_opencl_execution_time = total_execution_time / NUMBER_OF_ITERATIONS;
@@ -199,11 +247,7 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
     avg_opencl_kernel_read_time = total_read_time / NUMBER_OF_ITERATIONS;
     avg_opencl_kernel_operation = total_operation_time / NUMBER_OF_ITERATIONS;
 
-    for (size_t i = 0; i < (width * height * 4); i++) {
-        grayscale_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
-    }
-
-    return grayscale_output;
+    return function_output;
 }
 
 std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller, const cv::Mat &input_frame, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
