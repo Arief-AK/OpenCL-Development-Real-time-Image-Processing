@@ -78,3 +78,55 @@ void Logger::setLogLevel(LogLevel level)
     m_set_level = level;
 }
 
+void Logger::PrintEndToEndExecutionTime(std::string method, double total_execution_time_ms, Logger &logger)
+{
+    logger.log("-------------------- START OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
+
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(3) << "Total execution time (end-to-end): " << total_execution_time_ms << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+
+    logger.log("-------------------- END OF " + method + " EXECUTION TIME (end-to-end) DETAILS --------------------", Logger::LogLevel::INFO);
+}
+
+void Logger::PrintRawKernelExecutionTime(double &opencl_kernel_execution_time, double &opencl_kernel_write_time, double &opencl_kernel_read_time, double &opencl_kernel_operation_time, Logger &logger)
+{
+    logger.log("-------------------- START OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
+
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(5) << "Kernel write time: " << opencl_kernel_write_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel execution time: " << opencl_kernel_execution_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel read time: " << opencl_kernel_read_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+    oss.str("");
+
+    oss << std::fixed << std::setprecision(5) << "Kernel complete operation time: " << opencl_kernel_operation_time << " ms";
+    logger.log(oss.str(), Logger::LogLevel::INFO);
+
+    logger.log("-------------------- END OF KERNEL EXEUCTION DETAILS --------------------", Logger::LogLevel::INFO);
+}
+
+void Logger::PrintSummary(double &opencl_kernel_execution_time, double &opencl_kernel_write_time, double &opencl_kernel_read_time, double &opencl_execution_time, double &opencl_kernel_operation_time, double &cpu_execution_time, Logger &logger)
+{
+    if(m_print_terminal)
+        std::cout << "\n **************************************** START OF OpenCL SUMMARY **************************************** " << std::endl;
+    
+    PrintEndToEndExecutionTime("OpenCL", opencl_execution_time, logger);
+    PrintRawKernelExecutionTime(opencl_kernel_execution_time, opencl_kernel_write_time, opencl_kernel_read_time, opencl_kernel_operation_time, logger);
+    
+    if(m_print_terminal){
+        std::cout << " **************************************** END OF OpenCL SUMMARY **************************************** " << std::endl;
+        std::cout << "\n **************************************** START OF CPU SUMMARY **************************************** " << std::endl;
+    }
+
+    PrintEndToEndExecutionTime("CPU", cpu_execution_time, logger);
+
+    if(m_print_terminal)
+        std::cout << "\n **************************************** END OF CPU SUMMARY **************************************** " << std::endl;
+}
