@@ -6,7 +6,7 @@
 class ProgramHandler
 {
 public:
-    ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results);
+    ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results, int gaussian_kernel_size = 17, float gaussian_sigma = 6.0f);
 
     void InitLogger(Logger& logger, Logger::LogLevel level);
     void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* command_queue, cl_program* program, cl_kernel* kernel, std::string method);
@@ -29,6 +29,9 @@ private:
     int NUMBER_OF_ITERATIONS;
     int PLATFORM_INDEX;
     int DEVICE_INDEX;
+    
+    int GAUSSIAN_KERNEL_SIZE;
+    float GAUSSIAN_SIGMA;
 
     std::vector<std::string> METHOD;
     std::map<std::string, std::vector<std::string>> KERNELS;

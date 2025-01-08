@@ -8,24 +8,23 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 1
+#define DEVICE_INDEX 0
 
 int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = false;
+bool DISPLAY_IMAGES = true;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
 
-std::string TEST_DIRECTORY = "images/";
-std::string OUTPUT_FILE = "results.csv";
-
-std::vector<std::string> METHOD = {"GRAYSCALE", "GAUSSIAN"};
+std::string IMAGES_DIRECTORY = "images/";
+std::vector<std::string> METHOD = {"GRAYSCALE", "EDGE" , "GAUSSIAN"};
 
 std::vector<std::string> GRAYSCALE_KERNELS = {"grayscale_images.cl", "grayscale_base.cl"};
 std::vector<std::string> GAUSSIAN_KERNELS = {"gaussian_images.cl", "gaussian_base.cl"};
+std::vector<std::string> EDGE_KERNELS = {"edge_images.cl", "edge_base.cl"};
 
 void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
     // Initialise controllers
@@ -43,7 +42,7 @@ void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
     std::vector<unsigned char> output_data;
 
     // Load the images
-    auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
+    auto image_paths = file_handler.LoadImages(IMAGES_DIRECTORY);
     
     auto image_processing_method = 0;
     for (const auto& image_method : METHOD){
@@ -79,6 +78,12 @@ void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
                 width, height, logger, "GRAYSCALE");
                 break;
 
+            case 1:
+                output_data = program_handler.PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
+                avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
+                width, height, logger, "EDGE");
+                break;
+
             case 2:
                 output_data = program_handler.PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
                 avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
@@ -105,6 +110,10 @@ void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
                 } else {
                     opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
                 }   
+                break;
+
+            case 1:
+                opencl_output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
                 break;
 
             case 2:
@@ -271,9 +280,10 @@ int main() {
     // Initialise OpenCL platforms and devices
     program_handler.SetDeviceProperties(PLATFORM_INDEX, DEVICE_INDEX);
     program_handler.AddKernels(GRAYSCALE_KERNELS, "GRAYSCALE");
+    program_handler.AddKernels(EDGE_KERNELS, "EDGE");
     program_handler.AddKernels(GAUSSIAN_KERNELS, "GAUSSIAN");
 
-    PerformOnCamera(program_handler, logger);
-    //PerformOnImages(program_handler, logger);
+    //PerformOnCamera(program_handler, logger);
+    PerformOnImages(program_handler, logger);
     return 0;
 }

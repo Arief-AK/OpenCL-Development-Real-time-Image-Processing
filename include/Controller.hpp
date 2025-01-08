@@ -35,7 +35,7 @@ public:
     void Cleanup(cl_context context = 0, cl_command_queue commandQueue = 0, cl_program program = 0, cl_kernel kernel = 0, cl_sampler sampler = 0, cl_mem* mem_objects = 0, int num_mem_objects = 0);
 
     void PerformCLImageGrayscaling(cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
-    std::vector<cl_ulong>* profiling_events, std::vector<unsigned char>* input_data, std::vector<float>* output_data,
+    std::vector<cl_ulong>* profiling_events, std::vector<unsigned char>* input_data, std::vector<unsigned char>* output_data,
     cl_int& width, cl_int& height, Logger& logger);
 
     void PerformCLImageEdgeDetection(cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
@@ -50,8 +50,14 @@ private:
     cl_uint num_platforms, num_devices;
     cl_bool m_image_support;
 
+    void _profileEvent(cl_event& event, std::vector<cl_ulong> *profiling_events);
+    std::vector<unsigned char> ConvertToUChar(const std::vector<float>& input_data);
+
     std::pair<cl_mem, cl_mem> _initGrayscaleBuffers(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
-    std::pair<cl_mem, cl_mem> _initGrayscleImage2D(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+    std::pair<cl_mem, cl_mem> _initGrayscaleImage2D(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+
+    std::pair<cl_mem, cl_mem> _initEdgeDetectionBuffers(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+    std::pair<cl_mem, cl_mem> _initEdgeDetectionImage2D(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
 
     std::pair<cl_mem, cl_mem> _initGaussianBlurBuffers(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
     std::pair<cl_mem, cl_mem> _initGaussianBlurImage2D(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);

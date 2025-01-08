@@ -22,7 +22,7 @@ bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
 
-std::string TEST_DIRECTORY = "images/";
+std::string IMAGES_DIRECTORY = "images/";
 std::string KERNEL_FILE = "gaussian_blur.cl";
 std::string KERNEL_NAME = "gaussian_blur";
 std::string OUTPUT_FILE = "results.csv";
@@ -350,7 +350,7 @@ int main() {
     InitOpenCL(controller, &context, &command_queue, &program, &kernel);
 
     // Load the images
-    auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
+    auto image_paths = file_handler.LoadImages(IMAGES_DIRECTORY);
 
     // Iterate through the images
     for(const auto& image_path: image_paths){

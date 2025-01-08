@@ -1,6 +1,8 @@
 #include "ProgramHandler.hpp"
 
-ProgramHandler::ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results): NUMBER_OF_ITERATIONS{number_of_iterations}, LOG_EVENTS{log_events}, DISPLAY_IMAGES{display_images}, DISPLAY_TERMINAL_RESULTS{display_terminal_results}
+ProgramHandler::ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results,
+int gaussian_kernel_size, float gaussian_sigma): NUMBER_OF_ITERATIONS{number_of_iterations}, LOG_EVENTS{log_events}, DISPLAY_IMAGES{display_images}, DISPLAY_TERMINAL_RESULTS{display_terminal_results},
+GAUSSIAN_KERNEL_SIZE{gaussian_kernel_size}, GAUSSIAN_SIGMA{gaussian_sigma}
 {
      METHOD = {"GRAYSCALE", "GAUSSIAN"};
 }
@@ -65,7 +67,7 @@ void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_
     if(method == "GRAYSCALE"){
         kernel_name = "grayscale";
     } else if(method == "EDGE"){
-        kernel_name = "edge";
+        kernel_name = "sobel_edge_detection";
     } else if(method == "GAUSSIAN"){
         kernel_name = "gaussian_blur";
     } else{
@@ -151,10 +153,6 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
 
     // Initialise output variables
     std::vector<float> grayscale_output_data;
-
-    // TEMP: GAUSSIAN BLUR
-    auto gaussian_kernel_size = 5;
-    auto gaussian_sigma = 1.5f;
     
     // Initialise function output variable
     std::vector<unsigned char> function_output;
@@ -178,23 +176,22 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
         switch (image_processing_method)
         {
         case 0:
-            grayscale_output_data = std::vector<float>(width * height * 4);
-            controller.PerformCLImageGrayscaling(context, command_queue, kernel,
-                &profiling_events, &input_data, &grayscale_output_data,
-                width, height, logger);
-
             function_output = std::vector<unsigned char>(width * height * 4);
-            for (size_t i = 0; i < (width * height * 4); i++) {
-                function_output[i] = static_cast<unsigned char>(grayscale_output_data[i] * 255.0f); // Extract and scale grayscale
-            }
+            controller.PerformCLImageGrayscaling(context, command_queue, kernel,
+                &profiling_events, &input_data, &function_output,
+                width, height, logger);
             break;
         
         case 1:
+            function_output = std::vector<unsigned char>(width * height);
+            controller.PerformCLImageEdgeDetection(context, command_queue, kernel,
+                &profiling_events, &input_data, &function_output,
+                width, height, logger);
             break;
         
         case 2:
             function_output = std::vector<unsigned char>(width * height * 4);
-            controller.PerformCLGaussianBlur(gaussian_kernel_size, gaussian_sigma, context, command_queue, kernel,
+            controller.PerformCLGaussianBlur(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_SIGMA, context, command_queue, kernel,
                 &profiling_events, &input_data, &function_output,
                 width, height, logger);
             break;
@@ -266,10 +263,6 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
 
     // Initialise function output variable
     std::vector<unsigned char> function_output;
-    
-    // TEMP: GAUSSIAN BLUR
-    auto gaussian_kernel_size = 17;
-    auto gaussian_sigma = 6.0f;
 
     // RGBA input data
     std::vector<unsigned char> input_data(input_frame.data, input_frame.data + input_frame.total() * 4);
@@ -290,28 +283,27 @@ std::vector<unsigned char> ProgramHandler::PerformOpenCL(Controller &controller,
     switch (image_processing_method)
     {
         case 0:
-            output_data = std::vector<float>(width * height * 4);
+            function_output = std::vector<unsigned char>(width * height * 4);
             logger.log("Performing OpenCL Grayscaling...", Logger::LogLevel::INFO);
             controller.PerformCLImageGrayscaling(context, command_queue, kernel,
-                &profiling_events, &input_data, &output_data,
+                &profiling_events, &input_data, &function_output,
                 width, height, logger);
-            
-            function_output = std::vector<unsigned char>(width * height * 4);
-            for (size_t i = 0; i < (width * height * 4); i++) {
-                function_output[i] = static_cast<unsigned char>(output_data[i] * 255.0f); // Extract and scale grayscale
-            }
             logger.log("OpenCL Grayscale conversion complete", Logger::LogLevel::INFO);
             break;
         
         case 1:
+            function_output = std::vector<unsigned char>(width * height);
             logger.log("Performing OpenCL Edge Detection...", Logger::LogLevel::INFO);
+            controller.PerformCLImageEdgeDetection(context, command_queue, kernel,
+                &profiling_events, &input_data, &function_output,
+                width, height, logger);
             logger.log("OpenCL Edge Detection complete", Logger::LogLevel::INFO);
             break;
         
         case 2:
             function_output = std::vector<unsigned char>(width * height * 4);
             logger.log("Performing OpenCL Gaussian Blur...", Logger::LogLevel::INFO);
-            controller.PerformCLGaussianBlur(gaussian_kernel_size, gaussian_sigma, context, command_queue, kernel,
+            controller.PerformCLGaussianBlur(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_SIGMA, context, command_queue, kernel,
                 &profiling_events, &input_data, &function_output,
                 width, height, logger);
             logger.log("OpenCL Gaussian Blur complete", Logger::LogLevel::INFO);
