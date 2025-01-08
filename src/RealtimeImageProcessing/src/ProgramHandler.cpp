@@ -33,7 +33,7 @@ void ProgramHandler::SetDeviceProperties(int platform_index, int device_index)
     DEVICE_INDEX = device_index;
 }
 
-void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_command_queue *command_queue, cl_program *program, cl_kernel *kernel, std::string method)
+void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_command_queue *command_queue, cl_program *program, cl_kernel *kernel, std::string method, Logger& logger)
 {
     // Get OpenCL platforms
     auto platforms = controller.GetPlatforms();
@@ -46,21 +46,23 @@ void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_
     // Get intended device
     auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
 
-    if(!DISPLAY_TERMINAL_RESULTS){
+    if(DISPLAY_TERMINAL_RESULTS){
         for (auto && platform : platforms){
             controller.DisplayPlatformInformation(platform);
         }
 
+        std::ostringstream oss;
+
         // Inform user of chosen indexes for platform and device
-        std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
+        oss << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
+        logger.log(oss.str(), Logger::LogLevel::INFO);
+        oss.str("");
 
         char device_name[256];
         clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
-        std::cout << "Device name: " << device_name << std::endl;
-
-        size_t maxWorkGroupSize;
-        clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL);
-        printf("Max Work Group Size: %zu\n", maxWorkGroupSize);
+        oss << "Device name: " << device_name << std::endl;
+        logger.log(oss.str(), Logger::LogLevel::INFO);
+        oss.str("");
     }
 
     // Find method

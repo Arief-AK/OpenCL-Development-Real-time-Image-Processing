@@ -11,11 +11,12 @@
 #define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 1;
+int SWITCHING_TIME = 5;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
 bool DISPLAY_IMAGES = false;
-bool DISPLAY_TERMINAL_RESULTS = true;
+bool DISPLAY_TERMINAL_RESULTS = false;
 
 bool LOG_EVENTS = false;
 
@@ -47,7 +48,7 @@ void PerformOnImages(ProgramHandler& program_handler, Logger& logger){
     auto image_processing_method = 0;
     for (const auto& image_method : METHOD){
         // Initalise for each method
-        program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, image_method);
+        program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, image_method, logger);
 
         // Iterate through the images
         for(const auto& image_path: image_paths){
@@ -187,7 +188,7 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
         // Check timer and toggle mode every 10 seconds
         auto current_time = std::chrono::high_resolution_clock::now();
         auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_toggle_time).count();
-        if (elapsed_time >= 10) {
+        if (elapsed_time >= SWITCHING_TIME) {
             kernel_initialised = false;
             image_processing_method += 1;
             if(image_processing_method == 4){
@@ -202,7 +203,7 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
         case 0:
             // Perform Gaussian
             if(!kernel_initialised){
-                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GAUSSIAN");
+                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GAUSSIAN", logger);
                 kernel_initialised = true;
             }
             
@@ -223,7 +224,7 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
         case 2:
             // Perform grayscaling
             if(!kernel_initialised){
-                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GRAYSCALE");
+                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GRAYSCALE", logger);
                 kernel_initialised = true;
             }
             
@@ -251,7 +252,7 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
         case 3:
             // Perform Edge-detection
             if(!kernel_initialised){
-                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "EDGE");
+                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "EDGE", logger);
                 kernel_initialised = true;
             }
 

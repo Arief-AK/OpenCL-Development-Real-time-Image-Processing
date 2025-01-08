@@ -9,7 +9,7 @@ public:
     ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results, int gaussian_kernel_size = 17, float gaussian_sigma = 6.0f);
 
     void InitLogger(Logger& logger, Logger::LogLevel level);
-    void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* command_queue, cl_program* program, cl_kernel* kernel, std::string method);
+    void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* command_queue, cl_program* program, cl_kernel* kernel, std::string method, Logger& logger);
 
     void AddKernels(std::vector<std::string> kernels, std::string kernel_index);
     void SetDeviceProperties(int platform_index, int device_index);
