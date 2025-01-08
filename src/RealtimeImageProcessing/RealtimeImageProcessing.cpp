@@ -17,6 +17,7 @@ bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
 bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = false;
+bool PERFORM_LOGGING = false;
 
 bool LOG_EVENTS = false;
 
@@ -290,7 +291,7 @@ int main() {
     // Initialise (singleton) Logger
     Logger& logger = Logger::getInstance();
     auto program_handler = ProgramHandler(NUMBER_OF_ITERATIONS, LOG_EVENTS, DISPLAY_IMAGES, DISPLAY_TERMINAL_RESULTS);
-    program_handler.InitLogger(logger, Logger::LogLevel::INFO);
+    program_handler.InitLogger(logger, Logger::LogLevel::INFO, PERFORM_LOGGING);
 
     // Initialise OpenCL platforms and devices
     program_handler.SetDeviceProperties(PLATFORM_INDEX, DEVICE_INDEX);

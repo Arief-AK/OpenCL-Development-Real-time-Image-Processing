@@ -26,7 +26,7 @@ public:
 
     static Logger& getInstance();
     void setLogLevel(LogLevel level);
-    void setLogFile(const std::string& file_name);
+    void setLogFile(const std::string& file_name, bool save_to_file);
     void setTerminalDisplay(bool print_on_terminal);
     void log(const std::string& message, LogLevel level);
 
@@ -39,6 +39,7 @@ private:
     std::ofstream m_log_file;
     std::mutex m_mutex;
     bool m_print_terminal;
+    bool m_save_to_file;
     LogLevel m_set_level;
 
     Logger();

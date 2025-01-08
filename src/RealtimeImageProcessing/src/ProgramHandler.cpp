@@ -7,11 +7,11 @@ GAUSSIAN_KERNEL_SIZE{gaussian_kernel_size}, GAUSSIAN_SIGMA{gaussian_sigma}
      METHOD = {"GRAYSCALE", "GAUSSIAN"};
 }
 
-void ProgramHandler::InitLogger(Logger &logger, Logger::LogLevel level)
+void ProgramHandler::InitLogger(Logger &logger, Logger::LogLevel level, bool save_to_file)
 {
     // Set the log file
     try{
-        logger.setLogFile("RealtimeImageProcessing.log");
+        logger.setLogFile("RealtimeImageProcessing.log", save_to_file);
         logger.setLogLevel(level);
         logger.setTerminalDisplay(DISPLAY_TERMINAL_RESULTS);
         logger.log("Initialised logger", Logger::LogLevel::INFO);

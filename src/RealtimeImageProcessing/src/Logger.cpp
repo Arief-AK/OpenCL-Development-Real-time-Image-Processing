@@ -37,8 +37,10 @@ std::string Logger::_printLogLevel(LogLevel level)
     }
 }
 
-void Logger::setLogFile(const std::string &file_name)
+void Logger::setLogFile(const std::string &file_name, bool save_to_file)
 {
+    m_save_to_file = save_to_file;
+
     std::lock_guard<std::mutex> lock(m_mutex);
     if(m_log_file.is_open()){
         m_log_file.close();
@@ -68,8 +70,10 @@ void Logger::log(const std::string &message, LogLevel level)
             std::cout << log_message << std::endl;
     }
 
-    if(m_log_file.is_open()){
-        m_log_file << log_message << std::endl;
+    if(m_save_to_file){
+        if(m_log_file.is_open()){
+            m_log_file << log_message << std::endl;
+        }
     }
 }
 
