@@ -8,13 +8,13 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 0
+#define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 1;
 
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
-bool DISPLAY_IMAGES = true;
+bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
@@ -189,7 +189,7 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
         auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_toggle_time).count();
         if (elapsed_time >= 10) {
             image_processing_method += 1;
-            if(image_processing_method == 3){
+            if(image_processing_method == 4){
                 image_processing_method = 0;
                 kernel_initialised = false;
             }
@@ -247,6 +247,20 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
                 break;
             }
             break;
+
+        case 3:
+            // Perform Edge-detection
+            if(!kernel_initialised){
+                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GRAYSCALE");
+                kernel_initialised = true;
+            }
+
+            output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue,&kernel,
+            width, height, logger, "EDGE");
+
+            fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [EDGE]";
+            output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output.data()));
+            break;
         
         default:
             break;
@@ -283,7 +297,7 @@ int main() {
     program_handler.AddKernels(EDGE_KERNELS, "EDGE");
     program_handler.AddKernels(GAUSSIAN_KERNELS, "GAUSSIAN");
 
-    //PerformOnCamera(program_handler, logger);
-    PerformOnImages(program_handler, logger);
+    PerformOnCamera(program_handler, logger);
+    //PerformOnImages(program_handler, logger);
     return 0;
 }
