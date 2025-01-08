@@ -188,6 +188,7 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
         auto current_time = std::chrono::high_resolution_clock::now();
         auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_toggle_time).count();
         if (elapsed_time >= 10) {
+            kernel_initialised = false;
             image_processing_method += 1;
             if(image_processing_method == 4){
                 image_processing_method = 0;
@@ -217,7 +218,6 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
             // Normal
             cv::cvtColor(frame, output_image, cv::COLOR_RGBA2BGR);
             fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Normal]";
-            kernel_initialised = false;
             break;
 
         case 2:
@@ -251,7 +251,7 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
         case 3:
             // Perform Edge-detection
             if(!kernel_initialised){
-                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GRAYSCALE");
+                program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "EDGE");
                 kernel_initialised = true;
             }
 
