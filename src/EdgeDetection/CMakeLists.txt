@@ -61,7 +61,7 @@ target_include_directories(EdgeDetection_OpenCL PRIVATE kernel)
 target_link_libraries(EdgeDetection_OpenCL ${OS_LIB} ${OpenCV_LIBS})
 
 # Define the source images directory and the target images directory
-set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/EdgeDetection/images)
+set(IMAGES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/images)
 message(STATUS "Image sources are located in: " ${IMAGES_SOURCE_DIR})   # Grayscale pictures required for edge detection
 
 # Find all images in the source images directory
@@ -86,5 +86,8 @@ endforeach()
 message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
 
 # Move the kernel file(s) into the executable directory
-configure_file(kernel/sobel_edge.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/sobel_edge.cl COPYONLY)
+configure_file(kernel/edge_base.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/edge_base.cl COPYONLY)
+message(STATUS "The kernel is located in: ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")
+
+configure_file(kernel/edge_images.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/edge_images.cl COPYONLY)
 message(STATUS "The kernel is located in: ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")

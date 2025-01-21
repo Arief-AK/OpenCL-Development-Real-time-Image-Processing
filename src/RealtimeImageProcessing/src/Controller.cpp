@@ -1,6 +1,6 @@
 #include "Controller.hpp"
 
-Controller::Controller() : num_platforms{0}, num_devices{0} {}
+Controller::Controller() : num_platforms{0}, num_devices{0}, m_image_support{false} {}
 
 void Controller::CheckError(cl_int err, const char *name)
 {
@@ -63,6 +63,16 @@ std::vector<cl_device_id> Controller::GetDevices(cl_platform_id platform)
     return m_devices;
 }
 
+void Controller::_profileEvent(cl_event &event, std::vector<cl_ulong> *profiling_events)
+{
+    cl_ulong event_start, event_end;
+
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &event_start, nullptr);
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &event_end, NULL);
+    profiling_events->push_back(event_start);
+    profiling_events->push_back(event_end);
+}
+
 std::vector<unsigned char> Controller::ConvertToUChar(const std::vector<float> &input_data)
 {
     std::vector<unsigned char> output_data(input_data.size());
@@ -121,7 +131,7 @@ cl_command_queue Controller::CreateCommandQueue(cl_context context, cl_device_id
 cl_program Controller::CreateProgram(cl_context context, cl_device_id device, const char *filename)
 {
     cl_int err_num;
-    cl_program program;
+    cl_program program;    
 
     // Open the kernel file
     std::ifstream kernelFile(filename, std::ios::in);
@@ -233,7 +243,7 @@ std::pair<cl_mem, cl_mem> Controller::_initGrayscaleBuffers(cl_context *context,
     return std::make_pair(input_buffer, output_buffer);
 }
 
-std::pair<cl_mem, cl_mem> Controller::_initGrayscleImage2D(cl_context *context, cl_command_queue *command_queue, std::vector<unsigned char> *input_data, cl_int width, cl_int height, cl_event *write_event, Logger& logger)
+std::pair<cl_mem, cl_mem> Controller::_initGrayscaleImage2D(cl_context *context, cl_command_queue *command_queue, std::vector<unsigned char> *input_data, cl_int width, cl_int height, cl_event *write_event, Logger& logger)
 {
     // Initialise error variable
     cl_int err_num;
@@ -416,9 +426,9 @@ std::vector<float> Controller::_GenerateGausianKernel(int kernel_size, float sig
     return gaussian_kernel;
 }
 
-void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
-                                           std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<float> *output_data,
-                                           cl_int &width, cl_int &height, Logger &logger)
+void Controller::PerformCLImageGrayscaling(cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
+    std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<unsigned char> *output_data,
+    cl_int &width, cl_int &height, Logger &logger)
 {
     // Initialise error variable
     cl_int err_num;
@@ -427,8 +437,9 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
     cl_event write_event;
     cl_event kernel_event;
     cl_event read_event;
-    cl_ulong write_event_start, write_event_end, kernel_event_start, kernel_event_end, read_event_start, read_event_end;
 
+    // Initialise grayscale variables
+    std::vector<float> float_output_data(output_data->size());
     std::pair<cl_mem, cl_mem> buffers;
 
     // Initialise the global work size for kernel execution
@@ -440,7 +451,7 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
 
     switch (m_image_support){
     case CL_TRUE:
-        buffers = _initGrayscleImage2D(context, nullptr, input_data, width, height, &write_event, logger);
+        buffers = _initGrayscaleImage2D(context, nullptr, input_data, width, height, &write_event, logger);
         err_num = clEnqueueWriteImage(*command_queue, buffers.first, CL_FALSE, origin, region, 0, 0, input_data->data(), 0, nullptr, &write_event);
         break;
     
@@ -457,10 +468,7 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
     }
 
     clWaitForEvents(1, &write_event);
-    clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_event_start, nullptr);
-    clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_event_end, NULL);
-    profiling_events->push_back(write_event_start);
-    profiling_events->push_back(write_event_end);
+    _profileEvent(write_event, profiling_events);
 
     // Set kernel arguments
     err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &buffers.first);
@@ -478,21 +486,18 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
     }
 
     clWaitForEvents(1, &kernel_event);
-    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_event_start, NULL);
-    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_event_end, NULL);
-    profiling_events->push_back(kernel_event_start);
-    profiling_events->push_back(kernel_event_end);
+    _profileEvent(kernel_event, profiling_events);
 
     switch (m_image_support){
     case CL_TRUE:
-        err_num = clEnqueueReadImage(*command_queue, buffers.second, CL_FALSE, origin, region, 0, 0, output_data->data(), 1, &kernel_event, &read_event);
+        err_num = clEnqueueReadImage(*command_queue, buffers.second, CL_FALSE, origin, region, 0, 0, float_output_data.data(), 1, &kernel_event, &read_event);
         if(err_num != CL_SUCCESS){
             logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
         }
         break;
     
     case CL_FALSE:
-        err_num = clEnqueueReadBuffer(*command_queue, buffers.second, CL_FALSE, 0, width * height * sizeof(float) * 4, output_data->data(), 1, &kernel_event, &read_event);
+        err_num = clEnqueueReadBuffer(*command_queue, buffers.second, CL_FALSE, 0, width * height * sizeof(float) * 4, float_output_data.data(), 1, &kernel_event, &read_event);
         if(err_num != CL_SUCCESS){
             logger.log("Failed when executing kernel", Logger::LogLevel::ERROR);
         }
@@ -502,14 +507,18 @@ void Controller::PerformCLImageGrayscaling(std::string image_path, cl_context *c
         break;
     }
 
+    *output_data = ConvertToUChar(float_output_data);
+
     clWaitForEvents(1, &read_event);
-    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_event_start, NULL);
-    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_event_end, NULL);
-    profiling_events->push_back(read_event_start);
-    profiling_events->push_back(read_event_end);
+    _profileEvent(read_event, profiling_events);
+
+    clReleaseMemObject(buffers.first);
+    clReleaseMemObject(buffers.second);
+    clReleaseEvent(kernel_event);
+
 }
 
-void Controller::PerformCLImageEdgeDetection(std::string image_path, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
+void Controller::PerformCLImageEdgeDetection(cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
     std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<unsigned char> *output_data,
     cl_int &width, cl_int &height, Logger &logger)
 {
@@ -520,7 +529,6 @@ void Controller::PerformCLImageEdgeDetection(std::string image_path, cl_context 
     cl_event write_event;
     cl_event kernel_event;
     cl_event read_event;
-    cl_ulong write_event_start, write_event_end, kernel_event_start, kernel_event_end, read_event_start, read_event_end;
 
     // Initialise edge-detection variables
     std::vector<float> float_output_data(output_data->size());
@@ -556,10 +564,7 @@ void Controller::PerformCLImageEdgeDetection(std::string image_path, cl_context 
     }
 
     clWaitForEvents(1, &write_event);
-    clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_event_start, nullptr);
-    clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_event_end, NULL);
-    profiling_events->push_back(write_event_start);
-    profiling_events->push_back(write_event_end);
+    _profileEvent(write_event, profiling_events);
 
     // Set kernel arguments
     err_num = clSetKernelArg(*kernel, 0, sizeof(cl_mem), &buffers.first);
@@ -577,10 +582,7 @@ void Controller::PerformCLImageEdgeDetection(std::string image_path, cl_context 
     }
 
     clWaitForEvents(1, &kernel_event);
-    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_event_start, NULL);
-    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_event_end, NULL);
-    profiling_events->push_back(kernel_event_start);
-    profiling_events->push_back(kernel_event_end);
+    _profileEvent(kernel_event, profiling_events);
 
     // Read back image data
     switch (m_image_support)
@@ -603,13 +605,14 @@ void Controller::PerformCLImageEdgeDetection(std::string image_path, cl_context 
     *output_data = ConvertToUChar(float_output_data);
 
     clWaitForEvents(1, &read_event);
-    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_event_start, NULL);
-    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_event_end, NULL);
-    profiling_events->push_back(read_event_start);
-    profiling_events->push_back(read_event_end);
+    _profileEvent(read_event, profiling_events);
+
+    clReleaseMemObject(buffers.first);
+    clReleaseMemObject(buffers.second);
+    clReleaseEvent(kernel_event);
 }
 
-void Controller::PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, std::string image_path, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
+void Controller::PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
     std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<unsigned char> *output_data,
     cl_int &width, cl_int &height, Logger &logger)
 {
@@ -620,7 +623,6 @@ void Controller::PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, st
     cl_event write_event;
     cl_event kernel_event;
     cl_event read_event;
-    cl_ulong write_event_start, write_event_end, kernel_event_start, kernel_event_end, read_event_start, read_event_end;
 
     std::pair<cl_mem, cl_mem> buffers;
 
@@ -676,10 +678,7 @@ void Controller::PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, st
     }
 
     clWaitForEvents(1, &write_event);
-    clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_event_start, nullptr);
-    clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_event_end, NULL);
-    profiling_events->push_back(write_event_start);
-    profiling_events->push_back(write_event_end);
+    _profileEvent(write_event, profiling_events);
 
     // Set kernel arguments
     switch (m_image_support)
@@ -716,10 +715,7 @@ void Controller::PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, st
     }
 
     clWaitForEvents(1, &kernel_event);
-    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_event_start, NULL);
-    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_event_end, NULL);
-    profiling_events->push_back(kernel_event_start);
-    profiling_events->push_back(kernel_event_end);
+    _profileEvent(kernel_event, profiling_events);
 
     // Read back image data
     switch (m_image_support)
@@ -740,8 +736,9 @@ void Controller::PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, st
     }
 
     clWaitForEvents(1, &read_event);
-    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_event_start, NULL);
-    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_event_end, NULL);
-    profiling_events->push_back(read_event_start);
-    profiling_events->push_back(read_event_end);
+    _profileEvent(read_event, profiling_events);
+
+    clReleaseMemObject(buffers.first);
+    clReleaseMemObject(buffers.second);
+    clReleaseEvent(kernel_event);
 }

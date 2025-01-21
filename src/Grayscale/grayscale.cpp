@@ -8,7 +8,7 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 0
+#define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 100;
 
@@ -19,7 +19,7 @@ bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
 
-std::string TEST_DIRECTORY = "images/";
+std::string IMAGES_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
 std::string KERNEL_NAME = "grayscale_images.cl";
 
@@ -378,7 +378,7 @@ int main(int, char**){
     InitOpenCL(controller, &context, &command_queue, &program, &kernel);
 
     // Load the images
-    auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
+    auto image_paths = file_handler.LoadImages(IMAGES_DIRECTORY);
     
     // Iterate through the images
     for(const auto& image_path: image_paths){

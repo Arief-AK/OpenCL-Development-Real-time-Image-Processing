@@ -1,0 +1,34 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/26.0.4 Chrome/128.0.6613.186 Electron/32.2.5 Safari/537.36" version="26.0.4">
+  <diagram name="Page-1" id="CBod-ZJzjZO9EgPFaFXn">
+    <mxGraphModel dx="1098" dy="988" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="LKYLUEfh-heGJGxbtVe6-12" value="Host Program" style="swimlane;whiteSpace=wrap;html=1;startSize=23;" vertex="1" parent="1">
+          <mxGeometry x="218" y="360" width="415" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="LKYLUEfh-heGJGxbtVe6-13" value="&lt;b&gt;Kernel 1&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="LKYLUEfh-heGJGxbtVe6-12">
+          <mxGeometry x="27.5" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="LKYLUEfh-heGJGxbtVe6-14" value="&lt;b&gt;Kernel 2&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="LKYLUEfh-heGJGxbtVe6-12">
+          <mxGeometry x="147.5" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="LKYLUEfh-heGJGxbtVe6-15" value="&lt;b&gt;Kernel 3&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="LKYLUEfh-heGJGxbtVe6-12">
+          <mxGeometry x="267.5" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="LKYLUEfh-heGJGxbtVe6-11" value="OpenCL runtime (Work-group)" style="swimlane;whiteSpace=wrap;html=1;startSize=23;" vertex="1" parent="LKYLUEfh-heGJGxbtVe6-12">
+          <mxGeometry x="10" y="120" width="395" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="LKYLUEfh-heGJGxbtVe6-5" value="&lt;b&gt;Work-Item 1&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="LKYLUEfh-heGJGxbtVe6-11">
+          <mxGeometry x="17.5" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="LKYLUEfh-heGJGxbtVe6-6" value="&lt;b&gt;Work-Item 2&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="LKYLUEfh-heGJGxbtVe6-11">
+          <mxGeometry x="137.5" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="LKYLUEfh-heGJGxbtVe6-7" value="&lt;b&gt;Work-Item 3&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="LKYLUEfh-heGJGxbtVe6-11">
+          <mxGeometry x="257.5" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -8,7 +8,7 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 0
+#define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 100;
 
@@ -22,9 +22,8 @@ bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
 
-std::string TEST_DIRECTORY = "images/";
-std::string KERNEL_FILE = "gaussian_blur.cl";
-std::string KERNEL_NAME = "gaussian_blur";
+std::string IMAGES_DIRECTORY = "images/";
+std::string KERNEL_NAME = "gaussian_images.cl";
 std::string OUTPUT_FILE = "results.csv";
 
 void InitLogger(Logger& logger){
@@ -44,6 +43,8 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     for (auto && platform : platforms){
         controller.DisplayPlatformInformation(platform);
     }
+    // Initialise variable
+    std::string kernel_name = KERNEL_NAME;
 
     // Inform user of chosen indexes for platform and device
     std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
@@ -51,23 +52,34 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     // Get intended device
     auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
 
+    char device_name[256];
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
+    std::cout << "Device name: " << device_name << std::endl;
+
+    size_t maxWorkGroupSize;
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL);
+    printf("Max Work Group Size: %zu\n", maxWorkGroupSize);
+
     // Check device image support
     cl_bool image_support = CL_FALSE;
     clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
-    if (!image_support) {
-        std::cerr << "Device does not support images." << std::endl;
-        return;
+    if (image_support == CL_FALSE) {
+        kernel_name = "gaussian_base.cl";
+        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
+    }else{
+        std::cout << "Device supports images." << std::endl;
     }
+    controller.SetImageSupport(image_support);
 
     // Get OpenCL mandatory properties
     cl_int err_num = 0;
     *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
     *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
-    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], KERNEL_FILE.c_str());
-    *kernel = controller.CreateKernel(*program, KERNEL_NAME.c_str());
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], kernel_name.c_str());
+    *kernel = controller.CreateKernel(*program, "gaussian_blur");
 }
 
-void GetImageOpenCL(std::string image_path, std::vector<unsigned char>& input_data,
+void GetImageOpenCL(std::string image_path, std::vector<unsigned char>* input_data,
     cl_int* width, cl_int* height, Logger& logger){
     // Load the input image using OpenCV
     cv::Mat image = cv::imread(image_path, cv::IMREAD_COLOR);
@@ -80,16 +92,16 @@ void GetImageOpenCL(std::string image_path, std::vector<unsigned char>& input_da
         cv::imshow("Reference Image Window", image);
     }
 
-    // Convert image to RGBA format
-    cv::Mat rgba_image;
-    cv::cvtColor(image, rgba_image, cv::COLOR_BGR2RGBA);
-
-    // Get image dimensions
+    // Convert to RGBA and get image dimensions
+    cv::cvtColor(image, image, cv::COLOR_BGR2RGBA);
     *width = image.cols;
     *height = image.rows;
 
     // Flatten image into uchar array
-    input_data.assign(rgba_image.data, rgba_image.data + rgba_image.total() * rgba_image.channels());
+    std::vector<unsigned char> _input_data(image.data, image.data + image.total() * 4);
+
+    // Assign parameters
+    *input_data = _input_data;
 }
 
 std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
@@ -107,7 +119,7 @@ std::vector<uchar> PerformOpenCL(Controller& controller, std::string image_path,
     std::vector<cl_ulong> profiling_events;
 
     // Get image
-    GetImageOpenCL(image_path, input_data, &width, &height, logger);
+    GetImageOpenCL(image_path, &input_data, &width, &height, logger);
 
     // Initialise output variables
     std::vector<unsigned char> output_data(width * height * 4); // RGBA format
@@ -201,7 +213,7 @@ cv::Mat PerformCPU(Controller& controller, std::string image_path, double& avg_c
         // Loop through each pixel
         auto start = std::chrono::high_resolution_clock::now();
 
-        auto kernel = controller.GenerateGaussianKernel(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_SIGMA);
+        auto kernel = controller._GenerateGausianKernel(GAUSSIAN_KERNEL_SIZE, GAUSSIAN_SIGMA);
         int halfKernel = GAUSSIAN_KERNEL_SIZE / 2;
 
         // Apply the Gaussian kernel
@@ -350,7 +362,7 @@ int main() {
     InitOpenCL(controller, &context, &command_queue, &program, &kernel);
 
     // Load the images
-    auto image_paths = file_handler.LoadImages(TEST_DIRECTORY);
+    auto image_paths = file_handler.LoadImages(IMAGES_DIRECTORY);
 
     // Iterate through the images
     for(const auto& image_path: image_paths){
@@ -372,9 +384,15 @@ int main() {
         auto output_data = PerformOpenCL(controller, image_path, &context, &command_queue,&kernel,
             avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
             width, height, logger);
+
+        // Initialise output image
+        cv::Mat opencl_output_image;
+        auto image_support = controller.GetImageSupport();
         
-        cv::Mat opencl_output_image(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
-        cv::cvtColor(opencl_output_image, opencl_output_image, cv::COLOR_RGBA2BGR); // Convert to BGR for OpenCV
+        opencl_output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output_data.data()));
+        cv::cvtColor(opencl_output_image, opencl_output_image, cv::COLOR_RGBA2BGR);
+        
+        // Save images
         SaveImages(image_path, opencl_output_image);
 
         // Perform OpenCL vs CPU comparison
