@@ -1,5 +1,3 @@
-set(KERNEL_FILE "gaussian_blur.cl")
-
 # Print the build type
 message(STATUS "CMake Build Type: ${CMAKE_BUILD_TYPE}")
 
@@ -85,5 +83,8 @@ endforeach()
 message(STATUS "The images were re-located to: ${IMAGES_BINARY_DIR}")
 
 # Move the kernel file(s) into the executable directory
-configure_file(kernel/${KERNEL_FILE} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/${KERNEL_FILE} COPYONLY)
+configure_file(kernel/gaussian_base.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/gaussian_base.cl COPYONLY)
+message(STATUS "The kernel is located in: ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")
+
+configure_file(kernel/gaussian_images.cl ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/gaussian_images.cl COPYONLY)
 message(STATUS "The kernel is located in: ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")

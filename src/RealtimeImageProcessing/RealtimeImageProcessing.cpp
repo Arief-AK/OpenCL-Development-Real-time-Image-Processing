@@ -16,7 +16,7 @@ int SWITCHING_TIME = 5;
 bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
 bool DISPLAY_IMAGES = false;
-bool DISPLAY_TERMINAL_RESULTS = false;
+bool DISPLAY_TERMINAL_RESULTS = true;
 bool PERFORM_LOGGING = false;
 
 bool LOG_EVENTS = false;
@@ -299,7 +299,7 @@ int main() {
     program_handler.AddKernels(EDGE_KERNELS, "EDGE");
     program_handler.AddKernels(GAUSSIAN_KERNELS, "GAUSSIAN");
 
-    PerformOnCamera(program_handler, logger);
-    //PerformOnImages(program_handler, logger);
+    //PerformOnCamera(program_handler, logger);
+    PerformOnImages(program_handler, logger);
     return 0;
 }

@@ -22,12 +22,15 @@ public:
     std::vector<cl_platform_id> GetPlatforms();
     std::vector<cl_device_id> GetDevices(cl_platform_id platform);
 
+    cl_bool GetImageSupport();
+    void SetImageSupport(cl_bool image_support);
+
+    std::vector<float> _GenerateGausianKernel(int kernel_size, float sigma);
+
     cl_context CreateContext(cl_platform_id platform, std::vector<cl_device_id> devices);
     cl_command_queue CreateCommandQueue(cl_context context, cl_device_id device);
     cl_program CreateProgram(cl_context context, cl_device_id device, const char* filename);
     cl_kernel CreateKernel(cl_program program, const char* kernel_name);
-
-    std::vector<float> GenerateGaussianKernel(int kernel_size, float sigma);
 
     void DisplayPlatformInformation(cl_platform_id platform);
     void Cleanup(cl_context context = 0, cl_command_queue commandQueue = 0, cl_program program = 0, cl_kernel kernel = 0, cl_sampler sampler = 0, cl_mem* mem_objects = 0, int num_mem_objects = 0);
@@ -40,12 +43,27 @@ public:
         std::vector<cl_ulong>* profiling_events, std::vector<unsigned char>* input_data, std::vector<unsigned char>* output_data,
         cl_int& width, cl_int& height, Logger& logger);
 
-    void PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, std::string image_path, cl_context* context, cl_command_queue* command_queue, cl_kernel* kernel,
-        std::vector<cl_ulong>* profiling_events, std::vector<unsigned char>* input_data, std::vector<unsigned char>* output_data,
-        cl_int& width, cl_int& height, Logger& logger);
+    void PerformCLGaussianBlur(int& kernel_size, float& kernel_sigma, std::string image_path, cl_context *context, cl_command_queue *command_queue, cl_kernel *kernel,
+    std::vector<cl_ulong> *profiling_events, std::vector<unsigned char> *input_data, std::vector<unsigned char> *output_data,
+    cl_int &width, cl_int &height, Logger &logger);
 
 private:
     cl_uint num_platforms, num_devices;
+    cl_bool m_image_support;
+
+    std::vector<unsigned char> ConvertToUChar(const std::vector<float>& input_data);
+
+    std::pair<cl_mem, cl_mem> _initGrayscaleBuffers(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+    std::pair<cl_mem, cl_mem> _initGrayscleImage2D(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+
+    std::pair<cl_mem, cl_mem> _initEdgeDetectionBuffers(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+    std::pair<cl_mem, cl_mem> _initEdgeDetectionImage2D(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+
+    std::pair<cl_mem, cl_mem> _initGaussianBlurBuffers(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+    std::pair<cl_mem, cl_mem> _initGaussianBlurImage2D(cl_context* context, cl_command_queue* command_queue, std::vector<unsigned char>* input_data, cl_int width, cl_int height, cl_event* write_event, Logger& logger);
+    
+    std::vector<float> _GenerateGaussianKernelBuffers(int kernel_size, float sigma);
+    std::vector<float> _GenerateGaussianKernelImage2D(int kernel_size, float sigma);
 };
 
 #endif // CONTROLLER_H

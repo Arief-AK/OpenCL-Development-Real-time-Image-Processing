@@ -8,7 +8,7 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 0
+#define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 100;
 
@@ -21,6 +21,7 @@ bool LOG_EVENTS = false;
 
 std::string IMAGES_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
+std::string KERNEL_NAME = "edge_images.cl";
 
 void InitLogger(Logger& logger){
     // Set the log file
@@ -39,6 +40,8 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     for (auto && platform : platforms){
         controller.DisplayPlatformInformation(platform);
     }
+    // Initialise variable
+    std::string kernel_name = KERNEL_NAME;
 
     // Inform user of chosen indexes for platform and device
     std::cout << "\nApplication will use:\nPLATFORM INDEX:\t" << PLATFORM_INDEX << "\nDEVICE INDEX:\t" << DEVICE_INDEX << "\n" << std::endl;
@@ -46,26 +49,37 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
     // Get intended device
     auto devices = controller.GetDevices(platforms[PLATFORM_INDEX]);
 
+    char device_name[256];
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
+    std::cout << "Device name: " << device_name << std::endl;
+
+    size_t maxWorkGroupSize;
+    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL);
+    printf("Max Work Group Size: %zu\n", maxWorkGroupSize);
+
     // Check device image support
     cl_bool image_support = CL_FALSE;
     clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
-    if (!image_support) {
-        std::cerr << "Device does not support images." << std::endl;
-        return;
+    if (image_support == CL_FALSE) {
+        kernel_name = "edge_base.cl";
+        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
+    }else{
+        std::cout << "Device supports images." << std::endl;
     }
+    controller.SetImageSupport(image_support);
 
     // Get OpenCL mandatory properties
     cl_int err_num = 0;
     *context = controller.CreateContext(platforms[PLATFORM_INDEX], devices);
     *command_queue = controller.CreateCommandQueue(*context, devices[DEVICE_INDEX]);
-    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], "sobel_edge.cl");
+    *program = controller.CreateProgram(*context, devices[DEVICE_INDEX], kernel_name.c_str());
     *kernel = controller.CreateKernel(*program, "sobel_edge_detection");
 }
 
 void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_data,
     cl_int* width, cl_int* height, Logger& logger){
     // Load the input image using OpenCV
-    cv::Mat image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
+    cv::Mat image = cv::imread(image_path, cv::IMREAD_COLOR);
     if(image.empty()){
         logger.log("Failed to load image", Logger::LogLevel::ERROR);
     }
@@ -75,12 +89,13 @@ void GetImageOpenCL(std::string image_path, std::vector<unsigned char> *input_da
         cv::imshow("Reference Image Window", image);
     }
 
-    // Get image dimensions
+    // Convert to RGBA and get image dimensions
+    cv::cvtColor(image, image, cv::COLOR_BGR2RGBA);
     *width = image.cols;
     *height = image.rows;
 
     // Flatten image into uchar array
-    std::vector<unsigned char> _input_data(image.data, image.data + image.total());
+    std::vector<unsigned char> _input_data(image.data, image.data + image.total() * 4);
 
     // Assign parameters
     *input_data = _input_data;
@@ -349,7 +364,14 @@ int main()
             avg_opencl_execution_time, avg_opencl_kernel_write_time, avg_opencl_kernel_execution_time, avg_opencl_kernel_read_time, avg_opencl_kernel_operation_time,
             width, height, logger);
         
-        cv::Mat opencl_output_image(height, width, CV_8UC1, output_data.data());
+        // Initialise output image
+        cv::Mat opencl_output_image;
+        auto image_support = controller.GetImageSupport();
+
+        // Initialize output image based on image support
+        opencl_output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output_data.data()));
+        
+        // Save images
         SaveImages(image_path, opencl_output_image);
 
         // Perform OpenCL vs CPU comparison
