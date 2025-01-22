@@ -15,7 +15,7 @@ Application of OpenCL for real-time image processing on embedded hardware. This 
 >
 >## Realtime Preview
 ><details>
->TBA
+> ![Preview gif](Documentation/Resources/images/Realtime%20Preview.gif)
 ></details>
 
 ## OpenCL setup
