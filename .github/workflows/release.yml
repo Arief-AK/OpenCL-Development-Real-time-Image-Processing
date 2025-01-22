@@ -1,5 +1,4 @@
-name: Publish release
-
+name: Release
 on:
   push:
     tags:
