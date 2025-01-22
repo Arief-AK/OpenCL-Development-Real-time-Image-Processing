@@ -1,0 +1,41 @@
+name: CI
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                submodules: true
+
+            - name: Setup CMake caching
+              uses: actions/cache@v4
+              with:
+                # Cache the CMake build directory
+                path: build
+                key: ${{ runner.os }}-cmake-${{ hashFiles('**/CMakeLists.txt') }}
+                restore-keys: |
+                    ${{ runner.os }}-cmake-
+            
+            - name: Install dependencies
+              run: |
+                sudo apt update
+                sudo apt install -y cmake ocl-icd-opencl-dev opencl-headers libopencv-dev
+
+            - name: Build with CMake
+              run: |
+                cd /home/runner/work/OpenCL-Development-Real-time-Image-Processing/OpenCL-Development-Real-time-Image-Processing/
+                mkdir -p build
+                cmake -S . -B build
+                cd build
+                make
