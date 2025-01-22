@@ -8,7 +8,7 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 0
+#define DEVICE_INDEX 1
 
 int NUMBER_OF_ITERATIONS = 1;
 int SWITCHING_TIME = 5;
@@ -441,8 +441,8 @@ int main() {
     program_handler.AddKernels(EDGE_KERNELS, "EDGE");
     program_handler.AddKernels(GAUSSIAN_KERNELS, "GAUSSIAN");
 
-    // PerformOnCamera(program_handler, logger);
+    PerformOnCamera(program_handler, logger);
     // PerformOnImages(program_handler, logger);
-    PerformOnWebcam(program_handler, logger);
+    // PerformOnWebcam(program_handler, logger);
     return 0;
 }
