@@ -18,6 +18,7 @@ bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
 
 bool LOG_EVENTS = false;
+bool BYPASS_IMAGE_SUPPORT = true;
 
 std::string IMAGES_DIRECTORY = "images/";
 std::string OUTPUT_FILE = "results.csv";
@@ -59,12 +60,25 @@ void InitOpenCL(Controller& controller, cl_context* context, cl_command_queue* c
 
     // Check device image support
     cl_bool image_support = CL_FALSE;
-    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
-    if (image_support == CL_FALSE) {
+    switch (BYPASS_IMAGE_SUPPORT)
+    {
+    case false:
+        clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
+        if (image_support == CL_FALSE) {
+            kernel_name = "grayscale_base.cl";
+            std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
+        }else{
+            std::cout << "Device supports images." << std::endl;
+        }
+        break;
+
+    case true:
         kernel_name = "grayscale_base.cl";
-        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
-    }else{
-        std::cout << "Device supports images." << std::endl;
+        std::cout << "Bypass image support is True. Using buffers instead of image2D structures." << std::endl;
+        break;
+    
+    default:
+        break;
     }
     controller.SetImageSupport(image_support);
 
