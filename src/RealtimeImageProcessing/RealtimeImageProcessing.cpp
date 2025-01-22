@@ -17,7 +17,7 @@ bool PERFORM_COMP = true;
 bool SAVE_IMAGES = false;
 bool DISPLAY_IMAGES = false;
 bool DISPLAY_TERMINAL_RESULTS = true;
-bool PERFORM_LOGGING = false;
+bool PERFORM_LOGGING = true;
 
 bool LOG_EVENTS = false;
 bool BYPASS_IMAGE_SUPPORT = true;
