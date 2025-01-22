@@ -79,11 +79,11 @@ fig, axs = plt.subplots(3, 1, figsize=(10, 18))  # 3 rows, 1 column
 # Plot Grayscaling
 plot_method(axs[0], 'Grayscaling', frame_count, grayscale_times, 'blue')
 
-# Plot Edge Detection
-plot_method(axs[1], 'Edge Detection', frame_count, edge_times, 'green')
-
 # Plot Gaussian Blur
-plot_method(axs[2], 'Gaussian Blur', frame_count, gaussian_times, 'red')
+plot_method(axs[1], 'Gaussian Blur', frame_count, gaussian_times, 'red')
+
+# Plot Edge Detection
+plot_method(axs[2], 'Edge Detection', frame_count, edge_times, 'green')
 
 # Adjust layout to prevent overlap
 plt.tight_layout()
