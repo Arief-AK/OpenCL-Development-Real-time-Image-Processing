@@ -35,5 +35,8 @@ jobs:
       
       - name: Release
         uses: softprops/action-gh-release@v2.2.1
+        env:
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         with:
           files: .build/
+          
