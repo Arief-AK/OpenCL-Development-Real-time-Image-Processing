@@ -8,7 +8,7 @@
 
 // CONSTANTS
 #define PLATFORM_INDEX 0
-#define DEVICE_INDEX 1
+#define DEVICE_INDEX 0
 
 int NUMBER_OF_ITERATIONS = 1;
 int SWITCHING_TIME = 5;
@@ -20,6 +20,7 @@ bool DISPLAY_TERMINAL_RESULTS = true;
 bool PERFORM_LOGGING = false;
 
 bool LOG_EVENTS = false;
+bool BYPASS_IMAGE_SUPPORT = true;
 
 std::string IMAGES_DIRECTORY = "images/";
 std::vector<std::string> METHOD = {"GRAYSCALE", "EDGE" , "GAUSSIAN"};
@@ -284,13 +285,154 @@ void PerformOnCamera(ProgramHandler& program_handler, Logger& logger){
     clReleaseContext(context);
 }
 
+void PerformOnWebcam(ProgramHandler& program_handler, Logger& logger) {
+    // Initialise controllers
+    Controller controller;
+
+    // Initialise OpenCL variables
+    cl_context context;
+    cl_command_queue command_queue;
+    cl_program program;
+    cl_kernel kernel;
+    cl_int err_num = 0;
+
+    // Open the webcam (default webcam index is 0)
+    cv::VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        std::cerr << "Failed to open webcam" << std::endl;
+        exit(1);
+    }
+
+    // Get FPS
+    auto fps = cap.get(cv::CAP_PROP_FPS);
+
+    // Timer variables
+    auto last_toggle_time = std::chrono::high_resolution_clock::now();
+    auto image_processing_method = 0;
+
+    // Initialise frame and output variables
+    cv::Mat frame;
+    cv::Mat output_image;
+    std::vector<uchar> output;
+
+    std::string fps_text;
+
+    bool kernel_initialised = false;
+
+    // Initialise output image
+    auto image_support = controller.GetImageSupport();
+
+    while (true) {
+        cap >> frame;
+        if (frame.empty()) break;
+
+        // Convert frame to RGBA
+        cv::cvtColor(frame, frame, cv::COLOR_BGR2RGBA);
+        auto width = frame.cols;
+        auto height = frame.rows;
+
+        // Check timer and toggle mode every 10 seconds
+        auto current_time = std::chrono::high_resolution_clock::now();
+        auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_toggle_time).count();
+        if (elapsed_time >= SWITCHING_TIME) {
+            kernel_initialised = false;
+            image_processing_method += 1;
+            if (image_processing_method == 4) {
+                image_processing_method = 0;
+                kernel_initialised = false;
+            }
+            last_toggle_time = current_time; // Reset timer
+        }
+
+        switch (image_processing_method) {
+            case 0:
+                // Perform Gaussian
+                if (!kernel_initialised) {
+                    program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GAUSSIAN", logger);
+                    kernel_initialised = true;
+                }
+
+                output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue, &kernel,
+                                                        width, height, logger, "GAUSSIAN");
+
+                fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Gaussian]";
+                output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output.data()));
+                cv::cvtColor(output_image, output_image, cv::COLOR_RGBA2BGR);
+                break;
+
+            case 1:
+                // Normal
+                cv::cvtColor(frame, output_image, cv::COLOR_RGBA2BGR);
+                fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Normal]";
+                break;
+
+            case 2:
+                // Perform Grayscale
+                if (!kernel_initialised) {
+                    program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "GRAYSCALE", logger);
+                    kernel_initialised = true;
+                }
+
+                output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue, &kernel,
+                                                        width, height, logger, "GRAYSCALE");
+
+                fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [Grayscale]";
+
+                switch (image_support) {
+                    case CL_TRUE:
+                        output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output.data()));
+                        break;
+
+                    case CL_FALSE:
+                        output_image = cv::Mat(height, width, CV_8UC4, const_cast<unsigned char*>(output.data()));
+                        break;
+
+                    default:
+                        break;
+                }
+                break;
+
+            case 3:
+                // Perform Edge-detection
+                if (!kernel_initialised) {
+                    program_handler.InitOpenCL(controller, &context, &command_queue, &program, &kernel, "EDGE", logger);
+                    kernel_initialised = true;
+                }
+
+                output = program_handler.PerformOpenCL(controller, frame, &context, &command_queue, &kernel,
+                                                        width, height, logger, "EDGE");
+
+                fps_text = "FPS: " + std::to_string(static_cast<int>(fps)) + " [EDGE]";
+                output_image = cv::Mat(height, width, CV_8UC1, const_cast<unsigned char*>(output.data()));
+                break;
+
+            default:
+                break;
+        }
+
+        // Display the output frame
+        cv::putText(output_image, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255), 2);
+        cv::imshow("Webcam Feed", output_image);
+
+        if (cv::waitKey(1) == 27) break; // Exit on 'Esc' key
+    }
+
+    // Cleanup
+    cap.release();
+    cv::destroyAllWindows();
+    clReleaseKernel(kernel);
+    clReleaseProgram(program);
+    clReleaseCommandQueue(command_queue);
+    clReleaseContext(context);
+}
+
 int main() {
     std::cout << "Hello from RealtimeImage Module!" << std::endl;
     cv::ocl::setUseOpenCL(false);
 
     // Initialise (singleton) Logger
     Logger& logger = Logger::getInstance();
-    auto program_handler = ProgramHandler(NUMBER_OF_ITERATIONS, LOG_EVENTS, DISPLAY_IMAGES, DISPLAY_TERMINAL_RESULTS);
+    auto program_handler = ProgramHandler(NUMBER_OF_ITERATIONS, LOG_EVENTS, DISPLAY_IMAGES, DISPLAY_TERMINAL_RESULTS, BYPASS_IMAGE_SUPPORT);
     program_handler.InitLogger(logger, Logger::LogLevel::INFO, PERFORM_LOGGING);
 
     // Initialise OpenCL platforms and devices
@@ -299,7 +441,8 @@ int main() {
     program_handler.AddKernels(EDGE_KERNELS, "EDGE");
     program_handler.AddKernels(GAUSSIAN_KERNELS, "GAUSSIAN");
 
-    //PerformOnCamera(program_handler, logger);
-    PerformOnImages(program_handler, logger);
+    // PerformOnCamera(program_handler, logger);
+    // PerformOnImages(program_handler, logger);
+    PerformOnWebcam(program_handler, logger);
     return 0;
 }

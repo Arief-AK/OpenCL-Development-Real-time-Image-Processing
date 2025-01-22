@@ -1,7 +1,7 @@
 #include "ProgramHandler.hpp"
 
-ProgramHandler::ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results,
-int gaussian_kernel_size, float gaussian_sigma): NUMBER_OF_ITERATIONS{number_of_iterations}, LOG_EVENTS{log_events}, DISPLAY_IMAGES{display_images}, DISPLAY_TERMINAL_RESULTS{display_terminal_results},
+ProgramHandler::ProgramHandler(int number_of_iterations, bool log_events, bool display_images, bool display_terminal_results, bool bypass_image_support,
+int gaussian_kernel_size, float gaussian_sigma): NUMBER_OF_ITERATIONS{number_of_iterations}, LOG_EVENTS{log_events}, DISPLAY_IMAGES{display_images}, DISPLAY_TERMINAL_RESULTS{display_terminal_results}, BYPASS_IMAGE_SUPPORT{bypass_image_support},
 GAUSSIAN_KERNEL_SIZE{gaussian_kernel_size}, GAUSSIAN_SIGMA{gaussian_sigma}
 {
      METHOD = {"GRAYSCALE", "GAUSSIAN"};
@@ -79,18 +79,22 @@ void ProgramHandler::InitOpenCL(Controller &controller, cl_context *context, cl_
 
     // Check device image support
     cl_bool image_support = CL_FALSE;
-    clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
-
-    switch (image_support)
+    switch (BYPASS_IMAGE_SUPPORT)
     {
-    case CL_TRUE:
-        kernel_file = KERNELS[method][0];
-        std::cout << "Device supports images." << std::endl;
+    case false:
+        clGetDeviceInfo(devices[DEVICE_INDEX], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &image_support, nullptr);
+        if (image_support == CL_FALSE) {
+            kernel_file = KERNELS[method][1];
+            std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
+        }else{
+            kernel_file = KERNELS[method][0];
+            std::cout << "Device supports images." << std::endl;
+        }
         break;
 
-    case CL_FALSE:
+    case true:
         kernel_file = KERNELS[method][1];
-        std::cout << "Device does not support images. Using buffers instead of image2D structures." << std::endl;
+        std::cout << "Bypass image support is True. Using buffers instead of image2D structures." << std::endl;
         break;
     
     default:
