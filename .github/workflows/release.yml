@@ -38,5 +38,5 @@ jobs:
         env:
           token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         with:
-          files: build
+          files: ./build/*
           
