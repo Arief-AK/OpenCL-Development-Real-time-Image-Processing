@@ -1,6 +1,6 @@
 # OpenCL-Development: Real-time Image Processing
 
-[![Build](https://github.com/Arief-AK/OpenCL-Development-Real-time-Image-Processing/actions/workflows/ci.yml/badge.svg)](https://github.com/Arief-AK/OpenCL-Development-Real-time-Image-Processing/actions/workflows/ci.yml) [![Release](https://github.com/Arief-AK/OpenCL-Development-Real-time-Image-Processing/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/Arief-AK/OpenCL-Development-Real-time-Image-Processing/actions/workflows/release.yml)
+[![Build](https://github.com/Arief-AK/OpenCL-Development-Real-time-Image-Processing/actions/workflows/ci.yml/badge.svg)](https://github.com/Arief-AK/OpenCL-Development-Real-time-Image-Processing/actions/workflows/ci.yml) [![Release](https://github.com/Arief-AK/OpenCL-Development-Real-time-Image-Processing/actions/workflows/release.yml/badge.svg)](https://github.com/Arief-AK/OpenCL-Development-Real-time-Image-Processing/actions/workflows/release.yml)
 
 Application of OpenCL for real-time image processing on embedded hardware. This work demonstrates the development of image processing methods such as grayscale conversion, edge-detection, and Gaussian blur. The outcome of this project is to highlight OpenCL's praticality for real-world scenarios.
 
