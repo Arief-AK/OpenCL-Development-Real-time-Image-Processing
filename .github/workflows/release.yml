@@ -29,14 +29,14 @@ jobs:
         run: |
           cd /home/runner/work/OpenCL-Development-Real-time-Image-Processing/OpenCL-Development-Real-time-Image-Processing/
           mkdir -p build
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cd build
-          make
+        #   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        #   cd build
+        #   make
       
       - name: Release
         uses: softprops/action-gh-release@v2.2.1
-        env:
-          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
         with:
           files: ./build/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
           
