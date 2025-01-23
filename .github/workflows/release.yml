@@ -20,11 +20,13 @@ jobs:
             restore-keys: |
                 ${{ runner.os }}-cmake-
       
+      # Install the dependencies
       - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y cmake ocl-icd-opencl-dev opencl-headers libopencv-dev
 
+      # Build the applications
       - name: Build with CMake
         run: |
           cd /home/runner/work/OpenCL-Development-Real-time-Image-Processing/OpenCL-Development-Real-time-Image-Processing/
@@ -32,7 +34,18 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cd build
           make
-      
+
+      # Create a tar.gz archive of the build folder
+      - name: Create tar.gz archive
+        run: |
+          tar -czf build.tar.gz -C build .
+
+      # Create a zip archive of the build folder
+      - name: Create zip archive
+        run: |
+          zip -r build.zip build/
+
+      # Publish the release
       - name: Release
         uses: softprops/action-gh-release@v2.2.1
         with:
