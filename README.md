@@ -47,9 +47,30 @@ On Linux machines, run the following command
 sudo apt install libopencv-dev clinfo
 ```
 
-## Setup
-
+## CMake Setup
 > [!NOTE]\
 > Ensure that `CMake` is properly installed and added to the `PATH` environment variable on your machine. See [CMake official documentation](https://cmake.org/download/).
 >
 >This project is developed using [visual studio code](https://code.visualstudio.com/) IDE. The [CMake Tools extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools) is used extensively within the project development. It is highly recommended that users develop with VS code with this extension.
+
+## Getting Started
+> [!Important]\
+> Ensure that camera source is available (webcam or USB camera).
+
+To run the `RealtimeImageProcessing` application, run the following commands. This will build the `RealtimeImageProcesing` apllication in `Release` mode.
+
+### Windows
+```shell
+cmake -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE --no-warn-unused-cli -S . -B build
+cmake --build build --config Release
+cd .\build\src\RealtimeImageProcessing\Release
+.\RealtimeImageProcessing.exe
+```
+
+### Linux
+```shell
+cmake -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE --no-warn-unused-cli -S . -B build
+cmake --build build --config Release
+cd build/src/RealtimeImageProcessing/Release
+./RealtimeImageProcessing
+```
